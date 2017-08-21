@@ -81,183 +81,340 @@ public Action ResetRampProjection(Handle timer, int client)
 	ClientRampProjectionBool[client] = false;
 }
 
+//
+//public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 public OnGameFrame()
 {	
-	int client = 1;
-	for(new i = 1; i<MaxClients; i++)
+	for(int i = 1; i<MaxClients; i++)
 	{
-		if(IsClientInGame(i) && !IsFakeClient(i)) 
+		int client = i;
+		float vVelocity[3];
+		GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVelocity);
+
+		if(g_bRampbugFixEnable && TF2_GetClientTeam(client) != TFTeam_Spectator && TF2_GetClientTeam(client) != TFTeam_Unassigned && TF2_GetPlayerClass(client) != TFClass_Unknown && GetEntityMoveType(client) != MOVETYPE_NOCLIP)
 		{
-			client = i;
+			// Set origin bounds for hull trace
+			float vPos[3];
+			GetEntPropVector(client, Prop_Data, "m_vecOrigin", vPos);
 
-			float vVelocity[3];
-			GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVelocity);
+			float vMins[3];
+			GetEntPropVector(client, Prop_Send, "m_vecMins", vMins);
 
-			if(g_bRampbugFixEnable && TF2_GetClientTeam(client) != TFTeam_Spectator && TF2_GetClientTeam(client) != TFTeam_Unassigned && TF2_GetPlayerClass(client) != TFClass_Unknown && GetEntityMoveType(client) != MOVETYPE_NOCLIP)
-			{
-				// Set origin bounds for hull trace
-				float vPos[3];
-				GetEntPropVector(client, Prop_Data, "m_vecOrigin", vPos);
-
-				float vMins[3];
-				GetEntPropVector(client, Prop_Send, "m_vecMins", vMins);
-
-				float vMaxs[3];
-				GetEntPropVector(client, Prop_Send, "m_vecMaxs", vMaxs);
+			float vMaxs[3];
+			GetEntPropVector(client, Prop_Send, "m_vecMaxs", vMaxs);
 		
-				// Reduce horizontal bounds by one unit to prevent trace from hitting walls
-				vMins[0] += 1.0;
-				vMins[1] += 1.0;
-				vMaxs[0] -= 1.0;
-				vMaxs[1] -= 1.0;
-
-				// End position for trace
-				float vEndPos[3];				
-				vEndPos[0] = vPos[0];
-				vEndPos[1] = vPos[1];
-				vEndPos[2] = vPos[2] - 10000;
+			// Reduce horizontal bounds by one unit to prevent trace from hitting walls
+			/*
+			vMins[0] += 1.0;
+			vMins[1] += 1.0;
+			vMaxs[0] -= 1.0;
+			vMaxs[1] -= 1.0;
+			*/
+			// End position for trace
+			float vEndPos[3];				
+			vEndPos[0] = vPos[0];
+			vEndPos[1] = vPos[1];
+			vEndPos[2] = vPos[2] - 10000;
 				
-				TR_TraceHullFilter(vPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
-				if(TR_DidHit())
+			TR_TraceHullFilter(vPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+			if(TR_DidHit())
+			{
+
+				// Gets the normal vector of the surface under the player
+				float vPlane[3], vRealEndPos[3];
+				TR_GetPlaneNormal(INVALID_HANDLE, vPlane);
+
+				// Gets the trace collision point directly below player
+				TR_GetEndPosition(vRealEndPos);
+
+				/*
+				// Fix for 'real' rampbugs
+				// Detects if player is inside a ramp and if so teleports player upwards by 1 unit.
+				// vPlane[2] = z value of normal vector
+				// 0 = wall (90°) | 1 = level floor (0°) | 0.5-0.99 ~ 60°-8.11° 
+				if(vPos[2] - vRealEndPos[2] < 0.0)
+					CPrintToChatAll("vPos[2] - vRealEndPos[2] = %f", vPos[2] - vRealEndPos[2]);
+				if(0.5 < vPlane[2] < 0.99 && vPos[2] - vRealEndPos[2] < -0.025)
 				{
-
-					// Gets the normal vector of the surface under the player
-					float vPlane[3], vRealEndPos[3];
-					TR_GetPlaneNormal(INVALID_HANDLE, vPlane);
-
-					// Gets the trace collision point directly below player
-					TR_GetEndPosition(vRealEndPos);
-					
-					// BROKEN? doesn't seem to ever trigger | vPos[2] - vRealEndPos[2] seems to be 0.20 when standing on a shallow ramp, 0.50ish on steeper ramps, 1.00 very steep ramp or flat ground 
-					// Fix for 'real' rampbugs
-					// Detects if player is inside a ramp and if so teleports player upwards by 1 unit.
-					// vPlane[2] = z value of normal vector
-					// 0 = wall (90�) | 1 = level floor (0�) | 0.5-0.99 ~ 60�-8.11� 
-					if(0.5 < vPlane[2] < 0.99 && vPos[2] - vRealEndPos[2] < 0.0)
+					// Player was stuck, lets put him back on the ramp
+					TeleportEntity(client, vRealEndPos, NULL_VECTOR, vOldVelocity[client]);
+					decl String:nick[64];
+					if(GetClientName(client, nick, sizeof(nick)))
+						CPrintToChatAll("Prevented rampbug on {blue}%s{default}", nick);
+				}
+				*/
+			/*			
+				// Fix for when you random-ishly stop sliding up a ramp
+				// Enable with 'sm_cvar rampslidefix_enable 1'
+				// Detects if player is on a ramp and slows down by g_bRampslideFixSpeed u/s in a single tick,
+				// if so, teleport player upwards by 25u and set velocity back to what it was previously.
+				// Could be considered a bit of a cheat on some maps.
+				// Doesn't work well on ramps that are too shallow.
+				// 0.5-0.95 ~ 60°-18.19° 
+				if(g_bRampslideFixEnable)
+				{
+					if(0.5 < vPlane[2] < 0.95 && !(vPos[2] - vRealEndPos[2] < -0.025) && (SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0))) - SquareRoot((Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0))) > g_bRampslideFixSpeed)
 					{
-						// Player was stuck, lets put him back on the ramp
-						// Not sure if need to reset player velocity here, will figure out when it actually gets triggered
-						TeleportEntity(client, vRealEndPos, NULL_VECTOR, NULL_VECTOR);
+						// Player lost speed too fast, setting velocity to what it was before
+						// Teleport player 25 units up, for some reason lower values don't seem to work unless you increase players horizontal speed massively
+						vRealEndPos[2] += 1.0;
+						float vTempVel[3];
+						//vTempVel[0] = vOldVelocity[client][0]*(1-vPlane[2])*1.9;
+						//vTempVel[1] = vOldVelocity[client][1]*(1-vPlane[2])*1.9;
+						vTempVel[0] = vOldVelocity[client][0];
+						vTempVel[1] = vOldVelocity[client][1];
+						vTempVel[2] = vOldVelocity[client][2];
+						// Set vertical velocity to 0 if going down
+						if(vTempVel[2] < 0.0)
+							vTempVel[2] = 0.0;
+			
+						//vTempVel[2] = (1-vPlane[2])*50.0;
+						TeleportEntity(client, vRealEndPos, NULL_VECTOR, vOldVelocity[client]);
 						decl String:nick[64];
 						if(GetClientName(client, nick, sizeof(nick)))
-							CPrintToChatAll("Prevented rampbug on {blue}%s{default}", nick);
+							CPrintToChatAll("[{green}RBFix{default}] Prevented slidebug on {blue}%s{default}", nick);
 					}
-
-			   /* OLD CODE
-				*	
-				*	// Fix for when you random-ishly stop sliding up a ramp
-				*	// Enable with 'sm_cvar rampslidefix_enable 1'
-				*	// Detects if player is on a ramp and slows down by g_bRampslideFixSpeed u/s in a single tick,
-				*	// if so, teleport player upwards by 25u and set velocity back to what it was previously.
-				*	// Could be considered a bit of a cheat on some maps.
-				*	// Doesn't work well on ramps that are too shallow.
-				*	// 0.5-0.95 ~ 60�-18.19� 
-				*	if(g_bRampslideFixEnable)
-				*	{
-				*		if(0.5 < vPlane[2] < 0.95 && !(vPos[2] - vRealEndPos[2] < -0.025) && (SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0))) - SquareRoot((Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0))) > 700)
-				*		{
-				*			// Player lost speed too fast, setting velocity to what it was before
-				*			// Teleport player 25 units up, for some reason lower values don't seem to work unless you increase players horizontal speed massively
-				*			vRealEndPos[2] += 25.0;
-				*			float vTempVel[3];
-				*			//vTempVel[0] = vOldVelocity[client][0]*(1-vPlane[2])*1.9;
-				*			//vTempVel[1] = vOldVelocity[client][1]*(1-vPlane[2])*1.9;
-				*			vTempVel[0] = vOldVelocity[client][0];
-				*			vTempVel[1] = vOldVelocity[client][1];
-				*			vTempVel[2] = vOldVelocity[client][2];
-				*			// Set vertical velocity to 0 if going down
-				*			if(vTempVel[2] < 0.0)
-				*				vTempVel[2] = 0.0;
-				*
-				*			//vTempVel[2] = (1-vPlane[2])*50.0;
-				*			TeleportEntity(client, vRealEndPos, NULL_VECTOR, vTempVel);
-				*			decl String:nick[64];
-				*			if(GetClientName(client, nick, sizeof(nick)))
-				*				CPrintToChatAll("[{green}RBFix{default}] Prevented slidebug on {blue}%s{default}", nick);
-				*		}
-				*	}
-				*/
-					
-					// Check if on a ramp and this loop hasn't been done for client in the past 1 second and is moving faster than 300u/s
-					// This is to fix ramp sliding bugs caused by hitting a ramp from a bad angle/speed, usually when hitting a ramp in water
-					// Not sure if I should even bother with this since it probably will make a lot of ramps more forgiving and correct player mistakes
-					// Water ramps would still be buggy then though
-					if(g_bRampslideFixEnable && 0.5 < vPlane[2] < 0.95 && !ClientRampProjectionBool[client] && vPos[2] - vRealEndPos[2] < 1.0 && SquareRoot(Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0)) > g_bRampslideFixSpeed)
-					{
-
-						// Get direction of ramp (opposite direction of surface normal x,y)
-						float vRampDir[3];
-						vRampDir[0] = -vPlane[0];
-						vRampDir[1] = -vPlane[1];
-						vRampDir[2] = 0.0;
-						
-						// Normalize ramp direction vector so it is always greater than player horizontal velocity (so that projecting player velocity on it will not clamp)
-						// max velocity 3500 on x and y axis:
-						// sqrt(3500^2+3500^2) ~4990 total horizontal
-
-						NormalizeVector(vRampDir, vRampDir);
-						vRampDir[0] *= 5000.0;
-						vRampDir[1] *= 5000.0;
-
-						// Get dot product of player velocity and ramp direction
-						float vDot = GetVectorDotProduct(vVelocity, vRampDir);
-
-						// Make sure the ramp is facing the same direction we are moving in (prevents weird bouncing going down a ramp)
-						if(vDot > 0)
-						{
-							// Projecting player velocity to direction vector
-							float vLength = GetVectorLength(vRampDir);
-							float projMultiplier = vDot/Pow(vLength, 2.0);
-
-							// Calculate player velocity
-							float vProjVelocity[3];					
-							vProjVelocity[0] = vRampDir[0]*projMultiplier;
-							vProjVelocity[1] = vRampDir[1]*projMultiplier;
-
-							// Trigonometry magic - Get vertical velocity based on horizontal velocity and angle of ramp
-							vProjVelocity[2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vProjVelocity[0], 2.0) + Pow(vProjVelocity[1], 2.0)));
-
-							// Clamp projected velocity to length of original velocity
-							NormalizeVector(vProjVelocity, vProjVelocity);
-							vVelocity[2] = 0.0;
-							ScaleVector(vProjVelocity, GetVectorLength(vVelocity));
-
-							// If ramp is aligned on y-axis (vPlane[0] = 0.0) projected velocity on x-axis will be 0.0 and vise versa (hitting a ramp on y-axis would set your x-axis velocity to 0)
-							// Not sure yet if this approach works on ramps that aren't lined up with x- or y-axis yet.
-							if(FloatAbs(vProjVelocity[0]) < 1.0)
-							{
-								vProjVelocity[0] = vVelocity[0];
-							}
-							if(FloatAbs(vProjVelocity[1]) < 1.0)
-							{
-								vProjVelocity[1] = vVelocity[1];
-							}						
-
-							// Teleport up by 1u and set player velocity
-							vRealEndPos[2] += 1.0;
-							TeleportEntity(client, vRealEndPos, NULL_VECTOR, vProjVelocity);
-							
-							decl String:nick[64];
-							if(GetClientName(client, nick, sizeof(nick)))
-							{
-								//CPrintToChatAll("[{green}RBFix{default}] Set ProjVel on {blue}%s{default}", nick);
-								//CPrintToChatAll("[{green}RBFix{default}] AFTER x: %f , y: %f , z: %f ", vProjVelocity[0], vProjVelocity[1], vProjVelocity[2]);
-							}
-
-							// Start cooldown timer
-							ClientRampProjectionBool[client] = true;
-							CreateTimer(1.0, ResetRampProjection, client);
-						}
-						
-					}
-
-						
 				}
+			*/
+			
+
+				if(g_bRampslideFixEnable && 0.5 < vPlane[2] < 0.99 && !ClientRampProjectionBool[client] && vPos[2] - vRealEndPos[2] < 1.0/* && SquareRoot(Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0)) > g_bRampslideFixSpeed*/)
+				{
+					//CPrintToChatAll("[{green}RBFix{default}]normal x: %f, y: %f, z: %f", vPlane[0], vPlane[1], vPlane[2]);
+					// Get direction of ramp (opposite direction of surface normal x,y)
+					float vRampDir[3];
+					vRampDir[0] = -vPlane[0];
+					vRampDir[1] = -vPlane[1];
+
+					// Normalize ramp direction vector so it is always greater than player horizontal velocity (so that projecting player velocity on it will not clamp)
+					// max velocity 3500 on x and y axis:
+					// assuming someone makes a very dumb ramp where normal x or y = 0.0000001 or something..
+					NormalizeVector(vRampDir, vRampDir);
+					vRampDir[0] *= 10000000000.0;
+					vRampDir[1] *= 10000000000.0;
+					// Calculate Z from using surface normal
+					//vRampDir[2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vRampDir[0], 2.0) + Pow(vRampDir[1], 2.0)));
+
+					// Projecting player velocity to direction vector
+					float vDot = GetVectorDotProduct(vOldVelocity[client], vRampDir);
+					float vLength = GetVectorLength(vRampDir);
+					float projMultiplier = vDot/Pow(vLength, 2.0);
+			
+					// Calculate player velocity
+					float vProjVelocity[3];					
+					vProjVelocity[0] = vRampDir[0]*projMultiplier*0.85;
+					vProjVelocity[1] = vRampDir[1]*projMultiplier*0.85;
+					float oldProjVelocityLength = GetVectorLength(vProjVelocity);
+					if(vRampDir[0] == 0)
+					{
+						vProjVelocity[0] = vOldVelocity[client][0];
+					}
+					if(vRampDir[1] == 0)
+					{
+						vProjVelocity[1] = vOldVelocity[client][1];
+					}
+					// Players actual z velocity is needed for calculating angle between velocity and ramp surface
+					vProjVelocity[2] = vOldVelocity[client][2];
+					
+					// Get angle between player velocity vector and ramp surface
+					float angle;
+					angle = ArcCosine(GetVectorDotProduct(vProjVelocity, vRampDir)/(GetVectorLength(vProjVelocity)*GetVectorLength(vRampDir)));
+					//CPrintToChatAll("[{green}RBFix{default}]val: %f", GetVectorDotProduct(vProjVelocity, vRampDir)/(GetVectorLength(vProjVelocity)*GetVectorLength(vRampDir)));
+					float rampAngle = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(180/3.14159);
+					float attackAngle = angle*(180/3.14159);
+					//CPrintToChatAll("[{green}RBFix{default}]angle of ramp: %f", rampAngle);
+					//CPrintToChatAll("[{green}RBFix{default}]angle of attack: %f", attackAngle);
+					// Change z velocity to projected velocity
+					//vProjVelocity[2] = vRampDir[2]*projMultiplier;
+					vProjVelocity[2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vProjVelocity[0], 2.0) + Pow(vProjVelocity[1], 2.0)));
+					oldProjVelocityLength = SquareRoot(Pow(oldProjVelocityLength, 2.0) + Pow(vProjVelocity[2], 2.0));
+					//CPrintToChatAll("[{green}RBFix{default}]projected velocity x: %f, y: %f, z: %f", vProjVelocity[0],vProjVelocity[1],vProjVelocity[2]);
+					//CPrintToChatAll("[{green}RBFix{default}]projected velocity: %f", GetVectorLength(vProjVelocity));
+					bool preventBool = false;
+					float preventScale = 0.0;
+					//CPrintToChatAll("[{green}RBFix{default}]horizontal velocity change: %.0f (%.0f needed)", SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0)) - SquareRoot(Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0)), g_bRampslideFixSpeed);
+					if(GetVectorLength(vProjVelocity) >= 600.0 && (SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0))) - SquareRoot((Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0))) > g_bRampslideFixSpeed)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity)/(1/Cosine((rampAngle/180)*3.14159));	
+						
+						if(preventScale < 16675.0/rampAngle)
+							preventScale = 16675.0/rampAngle;
+						//CPrintToChatAll("[{green}RBFix{default}]scale: %f", preventScale);
+						CPrintToChatAll("[{green}RBFix{default}]horizontal velocity changed by more than %.0fu/s - doing magic ᕙ(░ಥ╭͜ʖ╮ಥ░)━☆ﾟ.*･｡ﾟ", g_bRampslideFixSpeed);
+					}
+					
+					/*
+					// Check if proj velocity > 1350 and we lost speed too fast
+					if(GetVectorLength(vProjVelocity) >= 1350 && 15 > rampAngle >= 10 /&& (12 > attackAngle > 11 || 7>attackAngle>6)//&& (SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0))) - SquareRoot((Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0))) > g_bRampslideFixSpeed/)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 1450)
+							preventScale = 1450.0;
+					}
+					if(GetVectorLength(vProjVelocity) >= 1250 && 20 > rampAngle >= 15)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 1350)
+							preventScale = 1350.0;
+					}
+					if(GetVectorLength(vProjVelocity) >= 1150 && 25 > rampAngle >= 20)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 1250)
+							preventScale = 1250.0;
+					}
+					if(1300 > GetVectorLength(vProjVelocity) >= 1050 && 30 > rampAngle >= 25)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 1150)
+							preventScale = 1150.0;
+					}
+					if(1250 > GetVectorLength(vProjVelocity) >= 950 && 35 > rampAngle >= 30)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 1050)
+							preventScale = 1050.0;
+					}
+					if(1200 > GetVectorLength(vProjVelocity) >= 850 && 40 > rampAngle >= 35)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 950)
+							preventScale = 950.0;
+					}
+					if(1150 > GetVectorLength(vProjVelocity) >= 750 && 45 > rampAngle >= 40)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 850)
+							preventScale = 850.0;
+					}
+					if(1100 > GetVectorLength(vProjVelocity) >= 650 && 50 > rampAngle >= 45)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 750)
+							preventScale = 750.0;
+					}
+					if(1050 > GetVectorLength(vProjVelocity) >= 550 && 55 > rampAngle >= 50)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 650)
+							preventScale = 650.0;
+					}
+					if(1000 > GetVectorLength(vProjVelocity) >= 450 && 60 > rampAngle >= 55)
+					{
+						preventBool = true;
+						preventScale = GetVectorLength(vProjVelocity);
+						if(GetVectorLength(vProjVelocity) < 550)
+							preventScale = 550.0;
+					}
+					*/
+					if(preventBool)
+					{
+						vRealEndPos[2] += 1.0;
+						//CPrintToChatAll("[{green}RBFix{default}] BEFORE: x: %f, y: %f, z: %f", vProjVelocity[0],vProjVelocity[1],vProjVelocity[2]);
+						/*
+						if(vProjVelocity[0] != vOldVelocity[client][0])
+							vProjVelocity[0] *= 0.90;
+						if(vProjVelocity[1] != vOldVelocity[client][1])
+							vProjVelocity[1] *= 0.90;
+						*/
+						NormalizeVector(vProjVelocity, vProjVelocity);
+						//CPrintToChatAll("[{green}RBFix{default}] MID: x: %f, y: %f, z: %f", vProjVelocity[0],vProjVelocity[1],vProjVelocity[2]);
+						//CPrintToChatAll("[{green}RBFix{default}] scale: %f", preventScale);
+						ScaleVector(vProjVelocity, preventScale);
+						//CPrintToChatAll("[{green}RBFix{default}] AFTER: x: %f, y: %f, z: %f", vProjVelocity[0],vProjVelocity[1],vProjVelocity[2]);
+						TeleportEntity(client, vRealEndPos, NULL_VECTOR, vProjVelocity);
+						//CPrintToChatAll("[{green}RBFix{default}] Hey I did something");
+						decl String:nick[64];
+						if(GetClientName(client, nick, sizeof(nick)))
+						{
+							//CPrintToChatAll("[{green}RBFix{default}] Set ProjVel on {blue}%s{default}", nick);
+						}
+					}
+
+
+					// Start cooldown timer
+					ClientRampProjectionBool[client] = true;
+					CreateTimer(0.1, ResetRampProjection, client);
+
+
+
+					/*
+					// Normalize ramp direction vector so it is always greater than player horizontal velocity (so that projecting player velocity on it will not clamp)
+					// max velocity 3500 on x and y axis:
+					// sqrt(3500^2+3500^2) ~4990 total horizontal
+					NormalizeVector(vRampDir, vRampDir);
+					vRampDir[0] *= 5000.0;
+					vRampDir[1] *= 5000.0;
+
+					// Get dot product of player velocity and ramp direction
+					float vDot = GetVectorDotProduct(vVelocity, vRampDir);
+			
+					
+					// Make sure the ramp is facing the same direction we are moving in (prevents weird bouncing going down a ramp)
+					if(vDot > 0)
+					{
+						// Projecting player velocity to direction vector
+						float vLength = GetVectorLength(vRampDir);
+						float projMultiplier = vDot/Pow(vLength, 2.0);
+			
+						// Calculate player velocity
+						float vProjVelocity[3];					
+						vProjVelocity[0] = vRampDir[0]*projMultiplier;
+						vProjVelocity[1] = vRampDir[1]*projMultiplier;
+			
+						// Trigonometry magic - Get vertical velocity based on horizontal velocity and angle of ramp
+						vProjVelocity[2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vProjVelocity[0], 2.0) + Pow(vProjVelocity[1], 2.0)));
+			
+						// Clamp projected velocity to length of original velocity
+						NormalizeVector(vProjVelocity, vProjVelocity);
+						vVelocity[2] = 0.0;
+						ScaleVector(vProjVelocity, GetVectorLength(vVelocity));
+			
+						// If ramp is aligned on y-axis (vPlane[0] = 0.0) projected velocity on x-axis will be 0.0 and vise versa (hitting a ramp on y-axis would set your x-axis velocity to 0)
+						// Not sure yet if this approach works on ramps that aren't lined up with x- or y-axis yet.
+						if(FloatAbs(vProjVelocity[0]) < 1.0)
+						{
+							vProjVelocity[0] = vVelocity[0];
+						}
+						if(FloatAbs(vProjVelocity[1]) < 1.0)
+						{
+							vProjVelocity[1] = vVelocity[1];
+						}						
+			
+						// Teleport up by 1u and set player velocity
+						//vRealEndPos[2] += 1.0;
+						TeleportEntity(client, vRealEndPos, NULL_VECTOR, vProjVelocity);
+						
+						decl String:nick[64];
+						if(GetClientName(client, nick, sizeof(nick)))
+						{
+							//CPrintToChatAll("[{green}RBFix{default}] Set ProjVel on {blue}%s{default}", nick);
+							CPrintToChatAll("[{green}RBFix{default}]vVelocity x: %f , y: %f , z: %f ", vVelocity[0], vVelocity[1], vVelocity[2]);
+							CPrintToChatAll("[{green}RBFix{default}]vProjVelocity x: %f , y: %f , z: %f ", vProjVelocity[0], vProjVelocity[1], vProjVelocity[2]);
+						}
+			
+						// Start cooldown timer
+						ClientRampProjectionBool[client] = true;
+						CreateTimer(1.0, ResetRampProjection, client);
+					}
+					*/
+				}
+			
 			}
-			// Save client velocity from this tick for later use
-			vOldVelocity[client][0] = vVelocity[0];
-			vOldVelocity[client][1] = vVelocity[1];
-			vOldVelocity[client][2] = vVelocity[2];
 		}
+		// Save client velocity from this tick for later use
+		vOldVelocity[client][0] = vVelocity[0];
+		vOldVelocity[client][1] = vVelocity[1];
+		vOldVelocity[client][2] = vVelocity[2];
 	}
 }
