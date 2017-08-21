@@ -136,6 +136,7 @@ public OnGameFrame()
 					if(0.5 < vPlane[2] < 0.99 && vPos[2] - vRealEndPos[2] < 0.0)
 					{
 						// Player was stuck, lets put him back on the ramp
+						// Not sure if need to reset player velocity here, will figure out when it actually gets triggered
 						TeleportEntity(client, vRealEndPos, NULL_VECTOR, NULL_VECTOR);
 						decl String:nick[64];
 						if(GetClientName(client, nick, sizeof(nick)))
@@ -178,6 +179,9 @@ public OnGameFrame()
 				*/
 					
 					// Check if on a ramp and this loop hasn't been done for client in the past 1 second and is moving faster than 300u/s
+					// This is to fix ramp sliding bugs caused by hitting a ramp from a bad angle/speed, usually when hitting a ramp in water
+					// Not sure if I should even bother with this since it probably will make a lot of ramps more forgiving and correct player mistakes
+					// Water ramps would still be buggy then though
 					if(g_bRampslideFixEnable && 0.5 < vPlane[2] < 0.95 && !ClientRampProjectionBool[client] && vPos[2] - vRealEndPos[2] < 1.0 && SquareRoot(Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0)) > g_bRampslideFixSpeed)
 					{
 
