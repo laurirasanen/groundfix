@@ -31,7 +31,10 @@ ConVar g_hRampslideFixSpeed;
 float   g_bRampslideFixSpeed;
 
 float vOldVelocity[64][3];
+float vOldPos[64][3];
+int triggerCount[64];
 bool ClientRampProjectionBool[64];
+float clientRampAngle[64];
 
 
 public OnPluginStart()
@@ -79,15 +82,17 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data)
 public Action ResetRampProjection(Handle timer, int client)
 {
 	ClientRampProjectionBool[client] = false;
+	triggerCount[client] = 0;
 }
 
 //
-//public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
-public OnGameFrame()
+//
+//public OnGameFrame()
+public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3], float angles[3], int &weapon, int &subtype, int &cmdnum, int &tickcount, int &seed, int mouse[2])
 {	
-	for(int i = 1; i<MaxClients; i++)
-	{
-		int client = i;
+	//for(int i = 1; i<MaxClients; i++)
+	//{
+		//int client = i;
 		float vVelocity[3];
 		GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVelocity);
 
@@ -126,6 +131,9 @@ public OnGameFrame()
 
 				// Gets the trace collision point directly below player
 				TR_GetEndPosition(vRealEndPos);
+
+				//int entity;
+				//TR_GetEntityIndex(entity);
 
 				/*
 				// Fix for 'real' rampbugs
@@ -176,9 +184,126 @@ public OnGameFrame()
 					}
 				}
 			*/
-			
+				// some ramps have very small differences in angle, check if larger than 0.001 to trigger again
+				if((clientRampAngle[client]-vPlane[2] > 0.001 || !ClientRampProjectionBool[client]) && vPos[2] - vRealEndPos[2] < 3.0/* - triggerCount[client]*/ && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > 300)
+				{
+					//CPrintToChatAll("[{green}RBFix{default}] x: %f", 5.0 - triggerCount[client]);
+					if(!ClientRampProjectionBool[client])
+						CPrintToChatAll("[{green}RBFix{default}] triggered, old angle: %.12f , new angle: %.12f", 0, vPlane[2]);
+					else
+						CPrintToChatAll("[{green}RBFix{default}] triggered, old angle: %.12f , new angle: %.12f", clientRampAngle[client], vPlane[2]);
+					clientRampAngle[client] = vPlane[2];
+					//clientEntity[client] = 0;
+					float newVel[3];
+					float backoff;
+					float change;
 
-				if(g_bRampslideFixEnable && 0.5 < vPlane[2] < 0.99 && !ClientRampProjectionBool[client] && vPos[2] - vRealEndPos[2] < 1.0/* && SquareRoot(Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0)) > g_bRampslideFixSpeed*/)
+					// Determine how far along plane to slide based on incoming direction.
+					backoff = GetVectorDotProduct(vVelocity, vPlane);
+
+					for(int i=0; i<3; i++)
+					{
+						change = vPlane[i]*backoff;
+						newVel[i] = vVelocity[i] - change;
+					}
+
+					// iterate once to make sure we aren't still moving through the plane
+					float adjust = GetVectorDotProduct(newVel, vPlane);
+					if(adjust < 0.0)
+					{
+						for(int i=0; i<3; i++)
+						{
+							newVel[i] -= vPlane[i]*adjust;
+						}						
+					}
+
+					// set player velocity
+					//vPos[2] += 1.0;
+					TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, newVel);
+					//CPrintToChatAll("[{green}RBFix{default}] set vel");
+					// start cooldown timer
+					ClientRampProjectionBool[client] = true;
+					
+					if(triggerCount[client] == 0)
+						CreateTimer(1.0, ResetRampProjection, client);
+					if(triggerCount[client] < 2)
+						triggerCount[client] += 1;
+				}
+				/*
+				if(triggerCount[client] < 3 && (SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0))) - SquareRoot((Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0))) > g_bRampslideFixSpeed && 0.5 < vPlane[2] < 0.99 && vPos[2] - vRealEndPos[2] < 1.0)
+				{
+					float vRampDir[3];
+					vRampDir[0] = -vPlane[0];
+					vRampDir[1] = -vPlane[1];
+					// Calculate Z
+					//vRampDir[2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vRampDir[0], 2.0) + Pow(vRampDir[1], 2.0))); 
+					*
+					float vTemp[3];
+					vTemp[0] = vOldVelocity[client][0];
+					vTemp[1] = vOldVelocity[client][1];
+					vTemp[2] = 0.0;
+					NormalizeVector(vTemp, vTemp);
+					vPos[0] -= vTemp[0];
+					vPos[1] -= vTemp[1];
+					*
+					//vRealEndPos[2] += 25.0;
+					vOldPos[client][2] += 1.0;
+					//vPos[1] += 5.0;
+					//vOldVelocity[client][2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0)));
+					
+					float rotAngle = 0.0;
+
+					if(vOldVelocity[client][0]*vRampDir[1] - vOldVelocity[client][1]*vRampDir[0] <= 0)
+					{
+						
+						rotAngle = ((vOldVelocity[client][0]*vRampDir[1] - vOldVelocity[client][1]*vRampDir[0])/10000);
+						if(rotAngle < -1.0*(3.14159/180))
+							rotAngle=-1.0*(3.14159/180);
+						
+						//rotAngle = -1.0*(3.14159/180);
+					}
+					else
+					{
+						
+						rotAngle = ((vOldVelocity[client][0]*vRampDir[1] - vOldVelocity[client][1]*vRampDir[0])/10000);
+						if(rotAngle > 1.0*(3.14159/180))
+							rotAngle=1.0*(3.14159/180);
+						
+						//rotAngle = 1.0*(3.14159/180);
+					}
+					CPrintToChatAll("[{green}RBFix{default}] Attempt: %i", triggerCount[client]+1);
+					//CPrintToChatAll("[{green}RBFix{default}] res: %f", vOldVelocity[client][0]*vRampDir[1] - vOldVelocity[client][1]*vRampDir[0]);
+					CPrintToChatAll("[{green}RBFix{default}] rotAngle: %f (%f)", rotAngle, rotAngle*(180/3.14159));
+					CPrintToChatAll("[{green}RBFix{default}] old x: %f, y: %f, z: %f", vOldVelocity[client][0],vOldVelocity[client][1],vOldVelocity[client][2]);
+					vOldVelocity[client][0] = vOldVelocity[client][0] * Cosine(rotAngle)- vOldVelocity[client][1]*Sine(rotAngle);
+					vOldVelocity[client][1] = vOldVelocity[client][0] * Sine(rotAngle)+ vOldVelocity[client][1]*Cosine(rotAngle);
+					//vOldVelocity[client][2] += 10.0;
+					//vOldVelocity[client][2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0)));
+					
+					CPrintToChatAll("[{green}RBFix{default}] new: x: %f, y: %f, z: %f", vOldVelocity[client][0],vOldVelocity[client][1],vOldVelocity[client][2]);
+					CPrintToChatAll("[{green}RBFix{default}] without fix: x: %f, y: %f, z: %f", vVelocity[0],vVelocity[1],vVelocity[2]);
+					TeleportEntity(client, vOldPos[client], NULL_VECTOR, vOldVelocity[client]);
+					triggerCount[client] += 1;
+					
+					
+				}
+				else
+				{
+					// Save client velocity from this tick for later use
+					if(triggerCount[client] > 0 && !((SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0))) - SquareRoot((Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0))) > g_bRampslideFixSpeed))
+					{
+						CPrintToChatAll("[{green}RBFix{default}] saved from rampbug");
+					}
+					vOldVelocity[client][0] = vVelocity[0];
+					vOldVelocity[client][1] = vVelocity[1];
+					vOldVelocity[client][2] = vVelocity[2];
+					vOldPos[client] = vPos;
+					
+					triggerCount[client] = 0;
+				}
+				*/
+				/*
+				if(false&&g_bRampslideFixEnable && 0.5 < vPlane[2] < 0.99 && !ClientRampProjectionBool[client] && vPos[2] - vRealEndPos[2] < 1.0* && SquareRoot(Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0)) > g_bRampslideFixSpeed*)
 				{
 					//CPrintToChatAll("[{green}RBFix{default}]normal x: %f, y: %f, z: %f", vPlane[0], vPlane[1], vPlane[2]);
 					// Get direction of ramp (opposite direction of surface normal x,y)
@@ -241,10 +366,10 @@ public OnGameFrame()
 						if(preventScale < 16675.0/rampAngle)
 							preventScale = 16675.0/rampAngle;
 						//CPrintToChatAll("[{green}RBFix{default}]scale: %f", preventScale);
-						CPrintToChatAll("[{green}RBFix{default}]horizontal velocity changed by more than %.0fu/s - doing magic ᕙ(░ಥ╭͜ʖ╮ಥ░)━☆ﾟ.*･｡ﾟ", g_bRampslideFixSpeed);
+						CPrintToChatAll("[{green}RBFix{default}]horizontal velocity changed by more than %.0fu/s", g_bRampslideFixSpeed);
 					}
 					
-					/*
+					*
 					// Check if proj velocity > 1350 and we lost speed too fast
 					if(GetVectorLength(vProjVelocity) >= 1350 && 15 > rampAngle >= 10 /&& (12 > attackAngle > 11 || 7>attackAngle>6)//&& (SquareRoot(Pow(vOldVelocity[client][0], 2.0) + Pow(vOldVelocity[client][1], 2.0))) - SquareRoot((Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0))) > g_bRampslideFixSpeed/)
 					{
@@ -316,17 +441,17 @@ public OnGameFrame()
 						if(GetVectorLength(vProjVelocity) < 550)
 							preventScale = 550.0;
 					}
-					*/
+					*
 					if(preventBool)
 					{
 						vRealEndPos[2] += 1.0;
 						//CPrintToChatAll("[{green}RBFix{default}] BEFORE: x: %f, y: %f, z: %f", vProjVelocity[0],vProjVelocity[1],vProjVelocity[2]);
-						/*
+						*
 						if(vProjVelocity[0] != vOldVelocity[client][0])
 							vProjVelocity[0] *= 0.90;
 						if(vProjVelocity[1] != vOldVelocity[client][1])
 							vProjVelocity[1] *= 0.90;
-						*/
+						*
 						NormalizeVector(vProjVelocity, vProjVelocity);
 						//CPrintToChatAll("[{green}RBFix{default}] MID: x: %f, y: %f, z: %f", vProjVelocity[0],vProjVelocity[1],vProjVelocity[2]);
 						//CPrintToChatAll("[{green}RBFix{default}] scale: %f", preventScale);
@@ -348,7 +473,7 @@ public OnGameFrame()
 
 
 
-					/*
+					/
 					// Normalize ramp direction vector so it is always greater than player horizontal velocity (so that projecting player velocity on it will not clamp)
 					// max velocity 3500 on x and y axis:
 					// sqrt(3500^2+3500^2) ~4990 total horizontal
@@ -407,14 +532,16 @@ public OnGameFrame()
 						ClientRampProjectionBool[client] = true;
 						CreateTimer(1.0, ResetRampProjection, client);
 					}
-					*/
+					*
 				}
-			
+				*/
 			}
 		}
+		/*
 		// Save client velocity from this tick for later use
 		vOldVelocity[client][0] = vVelocity[0];
 		vOldVelocity[client][1] = vVelocity[1];
 		vOldVelocity[client][2] = vVelocity[2];
-	}
+		*/
+	//}
 }
