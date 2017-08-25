@@ -137,7 +137,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				float vPlane[3], vRealEndPos[3];
 				TR_GetPlaneNormal(trace, vPlane);
 
-				// broken, figure out how to pass surface normal to trace filter, don't return same plane multiple times
+				// FIXME figure out how to pass surface normal to trace filter, don't return same plane multiple times
 				/*
 				currentNormal = vPlane;
 				if(j>1 && prevNormal[j-1][0] == vPlane[0] && prevNormal[j-1][1] == vPlane[1])
@@ -146,10 +146,10 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					continue;
 				}
 				*/
+
 				// Gets the trace collision point directly below player
 				TR_GetEndPosition(vRealEndPos, trace);
 
-				// FIXME try surface normals instead of entity index
 				prevNormal[j] = vPlane;
 				//CPrintToChatAll("[{green}RBFix{default}] traceEnt %i", TR_GetEntityIndex(trace));
 					
