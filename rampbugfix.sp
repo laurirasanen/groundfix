@@ -14,7 +14,7 @@
 public Plugin myinfo = 
 { 
     name = "rampbugfix", 
-    author = "Larry", 
+    author = "Larry + insane help from nolem", 
     description = "ramp fix", 
     version = "1.0.0", 
     url = "http://steamcommunity.com/id/pancakelarry" 
@@ -67,6 +67,8 @@ public OnEnableRampbugFixSpeedChanged(ConVar convar, const char[] oldValue, cons
 public bool TraceRayDontHitSelf(int entity, int mask, any data)
 {
 	// Don't return players or player projectiles or same ramp twice
+	// FIXME : returns the same surface multiple times
+	// doesn't fix V shaped ramps where you hit multiple surfaces simultaneously, such as the very bad one on jump_it_final
 	new entity_owner;
 	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
 	
@@ -141,7 +143,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		// Loop for up to 4 planes
 		for(int j = 0; j<4; j++)
 		{
-			// nolem stuff
 			hitCount[client] = 0;
 			maxHit[client]++;
 
@@ -153,28 +154,16 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				float vPlane[3], vRealEndPos[3];
 				TR_GetPlaneNormal(trace, vPlane);
 
-				// FIXME figure out how to pass surface normal to trace filter, don't return same plane multiple times
-				/*
-				currentNormal = vPlane;
-				if(j>1 && prevNormal[j-1][0] == vPlane[0] && prevNormal[j-1][1] == vPlane[1])
-				{
-					j--;
-					continue;
-				}
-				*/
-
 				// Gets the trace collision point directly below player
 				TR_GetEndPosition(vRealEndPos, trace);
 
 				prevNormal[j] = vPlane;
-				//CPrintToChatAll("[{green}RBFix{default}] vPlane[0] = %f vPlane[1] = %f vPlane[2] = %f", vPlane[0], vPlane[1], vPlane[2]);
 					
 				CloseHandle(trace);
 				
 				// some ramps have very small differences in angle, check if larger than 0.001 to trigger again
-				if(/*(clientRampAngle[client]-vPlane[2] > 0.001 || !clientRampProjectionBool[client]) &&*/ /*FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 &&*/ GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
+				if(FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 && GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
 				{
-					
 					ClipVelocity(newVel[client], vPlane, client);
 					clientHasNewVel[client] = true;
 
@@ -191,7 +180,6 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		}
 		
 		// set player velocity
-		//vPos[2] += 1.0;
 		if(clientHasNewVel[client])
 		{
 			TeleportEntity(client, NULL_VECTOR, NULL_VECTOR, newVel[client]);
@@ -211,6 +199,5 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		{
 			currentNormal[x] = 0.0;
 		}
-
 	}
 }
