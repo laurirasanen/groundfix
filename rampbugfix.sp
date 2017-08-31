@@ -69,8 +69,15 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data)
 	// Don't return players or player projectiles or same ramp twice
 	new entity_owner;
 	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
-
-	return entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients) && hitCount[data] > maxHit[data];
+	
+	if(entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients))
+	{
+		hitCount[data]++;
+		if(hitCount[data] > maxHit[data])
+			return true;
+	}
+	return false;
+	
 }
 
 public Action ResetRampProjection(Handle timer, int client)
