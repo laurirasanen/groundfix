@@ -137,9 +137,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 		newVel[client] = vVelocity;
 
-		maxHit[client] = 0;
+		maxHit[client] = -1;
 		// Loop for up to 4 planes
-		for(int j = 0; j<3; j++)
+		for(int j = 0; j<4; j++)
 		{
 			// nolem stuff
 			hitCount[client] = 0;
@@ -167,12 +167,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				TR_GetEndPosition(vRealEndPos, trace);
 
 				prevNormal[j] = vPlane;
-				//CPrintToChatAll("[{green}RBFix{default}] traceEnt %i", TR_GetEntityIndex(trace));
+				//CPrintToChatAll("[{green}RBFix{default}] vPlane[0] = %f vPlane[1] = %f vPlane[2] = %f", vPlane[0], vPlane[1], vPlane[2]);
 					
 				CloseHandle(trace);
 				
 				// some ramps have very small differences in angle, check if larger than 0.001 to trigger again
-				if(/*(clientRampAngle[client]-vPlane[2] > 0.001 || !clientRampProjectionBool[client]) &&*/ FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 && GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
+				if(/*(clientRampAngle[client]-vPlane[2] > 0.001 || !clientRampProjectionBool[client]) &&*/ /*FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 &&*/ GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
 				{
 					
 					ClipVelocity(newVel[client], vPlane, client);
@@ -181,11 +181,11 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					// start cooldown timer
 					clientRampProjectionBool[client] = true;
 					CreateTimer(1.0, ResetRampProjection, client);
-					if(j==0)
+					/*if(j==0)
 					{
 						CPrintToChatAll("[{green}RBFix{default}] tick");
 					}
-					CPrintToChatAll("[{green}RBFix{default}] hit normal x: %f, y: %f, z: %f", prevNormal[j][0],prevNormal[j][1],prevNormal[j][2]);
+					CPrintToChatAll("[{green}RBFix{default}] hit normal x: %f, y: %f, z: %f", prevNormal[j][0],prevNormal[j][1],prevNormal[j][2]);*/
 				}
 			}
 		}
