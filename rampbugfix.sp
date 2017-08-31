@@ -1,4 +1,4 @@
-// Plugin for TF2 to fix rampbugs
+// Plugin for TF2 to fix inconsistencies with ramps
 
 #pragma semicolon 1 
 
@@ -15,7 +15,7 @@ public Plugin myinfo =
 { 
     name = "rampbugfix", 
     author = "Larry", 
-    description = "rampbug fix for jumping", 
+    description = "ramp fix", 
     version = "1.0.0", 
     url = "http://steamcommunity.com/id/pancakelarry" 
 }; 
@@ -34,6 +34,9 @@ bool clientRampProjectionBool[MAXPLAYERS];
 
 float prevNormal[4][3];
 float currentNormal[3];
+
+int hitCount[MAXPLAYERS];
+int maxHit[MAXPLAYERS];
 
 
 public OnPluginStart()
@@ -67,7 +70,7 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data)
 	new entity_owner;
 	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
 
-	return entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients) && (prevNormal[0][0] != currentNormal[0] && prevNormal[0][1] != currentNormal[1]) && (prevNormal[1][0] != currentNormal[0] && prevNormal[1][1] != currentNormal[1]) && (prevNormal[2][0] != currentNormal[0] && prevNormal[2][1] != currentNormal[1]);	
+	return entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients) && hitCount[data] > maxHit[data];
 }
 
 public Action ResetRampProjection(Handle timer, int client)
@@ -127,12 +130,18 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 
 		newVel[client] = vVelocity;
 
+		maxHit[client] = 0;
+		// Loop for up to 4 planes
 		for(int j = 0; j<3; j++)
 		{
+			// nolem stuff
+			hitCount[client] = 0;
+			maxHit[client]++;
+
 			new Handle:trace = TR_TraceHullFilterEx(vPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
 			if(TR_DidHit(trace))
 			{
-					
+
 				// Gets the normal vector of the surface under the player
 				float vPlane[3], vRealEndPos[3];
 				TR_GetPlaneNormal(trace, vPlane);
