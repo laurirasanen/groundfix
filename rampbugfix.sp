@@ -203,7 +203,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				if(GetVectorDotProduct(newVel[client], tempNormals[l]) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < tempNormals[l][2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
 				{
 					//CPrintToChatAll("[{green}RBFix{default}] hull: %f ; %f ; %f", vPlane[0],vPlane[1],vPlane[2]);
-					CPrintToChatAll("[{green}RBFix{default}] %i: %f ; %f ; %f", l, tempNormals[l][0],tempNormals[l][1],tempNormals[l][2]);
+					//CPrintToChatAll("[{green}RBFix{default}] %i: %f ; %f ; %f", l, tempNormals[l][0],tempNormals[l][1],tempNormals[l][2]);
 					//ClipVelocity(newVel[client], vPlane, client);
 					ClipVelocity(newVel[client], tempNormals[l], client);
 					clientHasNewVel[client] = true;
