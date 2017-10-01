@@ -1,4 +1,4 @@
-// Plugin for TF2 to fix inconsistencies with ramps
+// A workaround for rampbugs in tf2
 
 #pragma semicolon 1 
 
@@ -15,8 +15,8 @@ public Plugin myinfo =
 { 
     name = "rampbugfix", 
     author = "Larry + insane help from nolem", 
-    description = "ramp fix", 
-    version = "1.0.0", 
+    description = "rampbug fix", 
+    version = "1.0.1 beta", 
     url = "http://steamcommunity.com/id/pancakelarry" 
 }; 
 
