@@ -1,4 +1,4 @@
-// A workaround for rampbugs in tf2
+// Plugin for TF2 to fix inconsistencies with ramps
 
 #pragma semicolon 1 
 
@@ -15,8 +15,8 @@ public Plugin myinfo =
 { 
     name = "rampbugfix", 
     author = "Larry + insane help from nolem", 
-    description = "rampbug fix", 
-    version = "1.0.1 beta", 
+    description = "ramp fix", 
+    version = "1.0.1", 
     url = "http://steamcommunity.com/id/pancakelarry" 
 }; 
 
@@ -26,7 +26,7 @@ bool   g_bRampbugFixEnable;
 ConVar g_hRampbugFixSpeed;
 float   g_bRampbugFixSpeed;
 
-float clientRampAngle[MAXPLAYERS][3];
+float clientRampAngle[MAXPLAYERS];
 float newVel[MAXPLAYERS][3];
 
 bool clientHasNewVel[MAXPLAYERS];
@@ -67,17 +67,16 @@ public OnEnableRampbugFixSpeedChanged(ConVar convar, const char[] oldValue, cons
 public bool TraceRayDontHitSelf(int entity, int mask, any data)
 {
 	// Don't return players or player projectiles or same ramp twice
+	// FIXME : returns the same surface multiple times
+	// doesn't fix V shaped ramps where you hit multiple surfaces simultaneously, such as the very bad one on jump_it_final
 	new entity_owner;
 	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
 	
 	if(entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients))
 	{
-		return true;
-		/*
 		hitCount[data]++;
 		if(hitCount[data] > maxHit[data])
 			return true;
-		*/
 	}
 	return false;
 	
@@ -90,7 +89,7 @@ public Action ResetRampProjection(Handle timer, int client)
 
 float ClipVelocity(float[3] vVelocity, float[3] normal, int client)
 {
-	clientRampAngle[client] = normal;
+	clientRampAngle[client] = normal[2];
 
 	float backoff;
 	float change;
@@ -139,73 +138,33 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		vEndPos[2] = vPos[2] - 10000;
 
 		newVel[client] = vVelocity;
-		/*
+
 		maxHit[client] = -1;
-			
-		hitCount[client] = 0;
-		maxHit[client]++;*/
-
-		new Handle:trace = TR_TraceHullFilterEx(vPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
-		if(TR_DidHit(trace))
+		// Loop for up to 4 planes
+		for(int j = 0; j<4; j++)
 		{
-			
-			// Gets the normal vector of the surface under the player
-			float vPlane[3], vRealEndPos[3];
-			TR_GetPlaneNormal(trace, vPlane);
+			hitCount[client] = 0;
+			maxHit[client]++;
 
-			// Gets the trace collision point directly below player
-			TR_GetEndPosition(vRealEndPos, trace);
+			new Handle:trace = TR_TraceHullFilterEx(vPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+			if(TR_DidHit(trace))
+			{
 
-			//prevNormal[j] = vPlane;
+				// Gets the normal vector of the surface under the player
+				float vPlane[3], vRealEndPos[3];
+				TR_GetPlaneNormal(trace, vPlane);
+
+				// Gets the trace collision point directly below player
+				TR_GetEndPosition(vRealEndPos, trace);
+
+				prevNormal[j] = vPlane;
 					
-			CloseHandle(trace);
-			float tempNormals[5][3];
-			tempNormals[0] = vPlane;
-			for(int k = 1; k < 5; k++)
-			{
-				float temp[3];
-				temp = vMins;
-				switch(k)
-				{
-					case 1:
-						continue;
-					case 2:
-						temp[0] = vMaxs[0];
-					case 3:
-						temp[1] = vMaxs[1];
-					case 4:
-					{
-						temp[0] = vMaxs[0];
-						temp[1] = vMaxs[1];
-					}							
-					default:
-						continue;
-				}
-				if(TR_TraceRay(vPos, temp, MASK_PLAYERSOLID_BRUSHONLY, RayType_EndPoint))
-				{
-					TR_GetPlaneNormal(INVALID_HANDLE, tempNormals[k]);
-				}
-			}
-			/*
-			for(int a = 0; a < 5; a++)
-			{
-				for(int b = 0; b < 5; b++)
-				{
-					if(a != b && tempNormals[a][0] == tempNormals[b][0] && tempNormals[a][1] == tempNormals[b][1])
-					{
-						tempNormals[b][0] = tempNormals[b][1] = tempNormals[b][2] = 0.0;
-					}
-				}
-			}*/
-			for(int l = 0; l < 5; l++)
-			{
+				CloseHandle(trace);
+				
 				// some ramps have very small differences in angle, check if larger than 0.001 to trigger again
-				if(GetVectorDotProduct(newVel[client], tempNormals[l]) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < tempNormals[l][2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
+				if(FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 && GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
 				{
-					//CPrintToChatAll("[{green}RBFix{default}] hull: %f ; %f ; %f", vPlane[0],vPlane[1],vPlane[2]);
-					//CPrintToChatAll("[{green}RBFix{default}] %i: %f ; %f ; %f", l, tempNormals[l][0],tempNormals[l][1],tempNormals[l][2]);
-					//ClipVelocity(newVel[client], vPlane, client);
-					ClipVelocity(newVel[client], tempNormals[l], client);
+					ClipVelocity(newVel[client], vPlane, client);
 					clientHasNewVel[client] = true;
 
 					// start cooldown timer
@@ -216,24 +175,9 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 						CPrintToChatAll("[{green}RBFix{default}] tick");
 					}
 					CPrintToChatAll("[{green}RBFix{default}] hit normal x: %f, y: %f, z: %f", prevNormal[j][0],prevNormal[j][1],prevNormal[j][2]);*/
-				}				
-			}
-			/*
-			// some ramps have very small differences in angle, check if larger than 0.001 to trigger again
-			if(FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 && GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
-			{
-				ClipVelocity(newVel[client], vPlane, client);
-				clientHasNewVel[client] = true;
-
-				// start cooldown timer
-				clientRampProjectionBool[client] = true;
-				CreateTimer(1.0, ResetRampProjection, client);
-				*if(j==0)
-				{
-					CPrintToChatAll("[{green}RBFix{default}] tick");
 				}
-				CPrintToChatAll("[{green}RBFix{default}] hit normal x: %f, y: %f, z: %f", prevNormal[j][0],prevNormal[j][1],prevNormal[j][2]);*
-			}*/
+			}
+			CloseHandle(trace);
 		}
 		
 		// set player velocity
