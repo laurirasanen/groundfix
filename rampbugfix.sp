@@ -147,6 +147,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 			maxHit[client]++;
 
 			new Handle:trace = TR_TraceHullFilterEx(vPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+			bool closed = false;
 			if(TR_DidHit(trace))
 			{
 
@@ -160,6 +161,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				prevNormal[j] = vPlane;
 					
 				CloseHandle(trace);
+				closed = true;
 				
 				// some ramps have very small differences in angle, check if larger than 0.001 to trigger again
 				if(FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 && GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 3.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
@@ -177,7 +179,12 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					CPrintToChatAll("[{green}RBFix{default}] hit normal x: %f, y: %f, z: %f", prevNormal[j][0],prevNormal[j][1],prevNormal[j][2]);*/
 				}
 			}
-			CloseHandle(trace);
+			if(!closed)
+			{
+				CloseHandle(trace);
+				closed = true;
+			}
+			
 		}
 		
 		// set player velocity
