@@ -16,7 +16,7 @@ public Plugin myinfo =
     name = "rampbugfix", 
     author = "Larry + insane help from nolem", 
     description = "ramp fix", 
-    version = "1.0.1", 
+    version = "1.0.2", 
     url = "http://steamcommunity.com/id/pancakelarry" 
 }; 
 
