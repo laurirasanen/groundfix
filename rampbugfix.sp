@@ -16,7 +16,7 @@ public Plugin myinfo =
     name = "rampbugfix", 
     author = "Larry + insane help from nolem", 
     description = "ramp fix", 
-    version = "1.0.3", 
+    version = "1.0.4", 
     url = "http://steamcommunity.com/id/pancakelarry" 
 }; 
 
@@ -69,7 +69,6 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data)
 	// Don't return players or player projectiles or same ramp twice
 	// FIXME : returns the same surface multiple times
 	// doesn't fix V shaped ramps where you hit multiple surfaces simultaneously, such as the very bad one on jump_it_final
-	// this might just be because you dont go up the ramp (dot product of velocity and surface normal > 0)
 	new entity_owner;
 	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
 	
@@ -136,7 +135,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 		float vEndPos[3];				
 		vEndPos[0] = vPos[0];
 		vEndPos[1] = vPos[1];
-		vEndPos[2] = vPos[2] - 10000;
+		vEndPos[2] = vPos[2] - 3500;
 
 		newVel[client] = vVelocity;
 
@@ -156,6 +155,18 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				float vPlane[3], vRealEndPos[3];
 				TR_GetPlaneNormal(trace, vPlane);
 
+				float vRampSurfaceDir[3];
+				vRampSurfaceDir[0] = -vPlane[0];
+				vRampSurfaceDir[1] = -vPlane[1];
+				if(vPlane[2] > 0)
+				{
+					vRampSurfaceDir[2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vRampSurfaceDir[0], 2.0) + Pow(vRampSurfaceDir[1], 2.0)));
+				}
+				
+
+				//PrintToChatAll("vPlane: %f, %f, %f", vPlane[0], vPlane[1], vPlane[2]);
+				//PrintToChatAll("vRampSurfaceDir: %f, %f, %f", vRampSurfaceDir[0], vRampSurfaceDir[1], vRampSurfaceDir[2]);
+
 				// Gets the trace collision point directly below player
 				TR_GetEndPosition(vRealEndPos, trace);
 
@@ -165,7 +176,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 				closed = true;
 				
 				// some ramps have very small differences in angle, check if larger than 0.001 to trigger again
-				if(FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 && GetVectorDotProduct(newVel[client], vPlane) < 0.0 && vPos[2] - vRealEndPos[2] < 2.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
+				if((FloatAbs(clientRampAngle[client]-vPlane[2]) > 0.001 || !clientRampProjectionBool[client]) && GetVectorDotProduct(newVel[client], vPlane) < 0.0 && GetVectorDotProduct(newVel[client], vRampSurfaceDir) > 0.0 && vPos[2] - vRealEndPos[2] < 2.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > g_bRampbugFixSpeed)
 				{
 					//PrintToChatAll("hit");
 					ClipVelocity(newVel[client], vPlane, client);
@@ -174,11 +185,7 @@ public Action OnPlayerRunCmd(int client, int &buttons, int &impulse, float vel[3
 					// start cooldown timer
 					clientRampProjectionBool[client] = true;
 					CreateTimer(1.0, ResetRampProjection, client);
-					/*if(j==0)
-					{
-						CPrintToChatAll("[{green}RBFix{default}] tick");
-					}
-					CPrintToChatAll("[{green}RBFix{default}] hit normal x: %f, y: %f, z: %f", prevNormal[j][0],prevNormal[j][1],prevNormal[j][2]);*/
+
 				}
 			}
 			if(!closed)
