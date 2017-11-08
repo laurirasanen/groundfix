@@ -48,6 +48,7 @@ public OnEnableRampbugFixNotifyChanged(ConVar convar, const char[] oldValue, con
 
 public bool TraceRayDontHitSelf(int entity, int mask, any data)
 {
+	// Don't return entity itself, it's owner (if entity is stickybomb for example), or player entities
 	new entity_owner;
 	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
 	
@@ -69,18 +70,25 @@ public void OnGameFrame()
 		if(TF2_GetClientTeam(i) == TFTeam_Spectator || TF2_GetClientTeam(i) == TFTeam_Unassigned || GetEntityMoveType(i) == MOVETYPE_NOCLIP || !IsPlayerAlive(i))
 			continue;
 
-		float vPos[3], vEndPos[3], vMins[3];
+		float vPos[3], vEndPos[3], vMins[3], vMaxs[3];
 		GetEntPropVector(i, Prop_Data, "m_vecAbsOrigin", vPos);
 		GetEntPropVector(i, Prop_Send, "m_vecMins", vMins);
+		GetEntPropVector(i, Prop_Send, "m_vecMaxs", vMaxs);
 
 		vEndPos[0] = vPos[0];
 		vEndPos[1] = vPos[1];
 		vEndPos[2] = vPos[2] + 1.0;
+		
+		// Make hull into a flat plane rather than a box
+		vMaxs[2] = vMins[2];
 
-		new Handle:trace = TR_TraceHullFilterEx(vPos, vEndPos, vMins, vMins, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, i);
-
+		// Check if players feet are clipping into a surface
+		// (TraceHull upwards from bottom of player bounds)
+		new Handle:trace = TR_TraceHullFilterEx(vPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, i);
+		
 		if(TR_DidHit(trace))
 		{
+			// Teleport player upwards by 1 unit
 			vPos[2] += 1.0;
 			TeleportEntity(i, vPos, NULL_VECTOR, NULL_VECTOR);
 
