@@ -12,7 +12,7 @@ public Plugin myinfo =
     name = "rampbugfix",
     author = "Larry", 
     description = "ramp bug fix", 
-    version = "2.0.0", 
+    version = "2.0.1", 
     url = "http://steamcommunity.com/id/pancakelarry" 
 }; 
 
@@ -48,11 +48,9 @@ public OnEnableRampbugFixNotifyChanged(ConVar convar, const char[] oldValue, con
 
 public bool TraceRayDontHitSelf(int entity, int mask, any data)
 {
-	// Don't return entity itself, it's owner (if entity is stickybomb for example), or player entities
-	new entity_owner;
-	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
+	// Only return world
 	
-	if(entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients))
+	if(entity == 0)
 	{
 		return true;
 	}
