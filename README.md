@@ -1,3 +1,3 @@
 # rampbugfix
 
-A Sourcemod plugin intended to fix inconsistent ramps in tf2.
+A Sourcemod plugin for preventing some ramp bugs.
