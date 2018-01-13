@@ -21,6 +21,24 @@ public Plugin myinfo =
     url = "http://steamcommunity.com/id/pancakelarry" 
 }; 
 
+bool TakeDamage[MAXPLAYERS];
+
+
+public OnClientPutInServer(int client)
+{
+	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+}
+public OnClientDisconnect(int client)
+{
+	SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+}
+
+public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
+{
+	TakeDamage[victim] = true;
+	return Plugin_Continue;
+}
+
 public OnGameFrame()
 {
 	for(int i = 1; i <= MaxClients; i++)
@@ -30,6 +48,14 @@ public OnGameFrame()
 		if(TF2_GetClientTeam(i) == TFTeam_Spectator || TF2_GetClientTeam(i) == TFTeam_Unassigned || !(TF2_GetPlayerClass(i) == TFClass_Soldier || TF2_GetPlayerClass(i) == TFClass_DemoMan) || GetEntityMoveType(i) == MOVETYPE_NOCLIP || !IsPlayerAlive(i))
 			continue;
 			
+		/*
+		// Do nothing if player takes damage
+		// this might stop the weird speed boost bug
+		if(TakeDamage[i])
+		{
+			TakeDamage[i] = false;
+			return;
+		}*/
 		SetClientGroundEntity(i);
 	}
 }
@@ -91,17 +117,7 @@ void SetClientGroundEntity(int client)
 		if(GetEntPropEnt(client, Prop_Data, "m_hGroundEntity") != -1 && GetVectorDotProduct(vVelocity, vPlane) < 0.0 && GetVectorDotProduct(vVelocity, vRampSurfaceDir) > 0.0 && vPos[2] - vRealEndPos[2] < 2.0 && 0 < vPlane[2] < 1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) > 300.0)
 		{
 			SetEntPropEnt(client, Prop_Data, "m_hGroundEntity", -1);
-			//PrintToChatAll("Set ground ent to -1");
 		}
-		// FIXME: add check for vertical velocity (falling on to a ramp from a height and not moving horizontally stops you cos ground entity gets set to 0)
-		/*
-		else if(GetEntPropEnt(client, Prop_Data, "m_hGroundEntity") == -1 && SquareRoot( Pow(vVelocity[0],2.0) + Pow(vVelocity[1],2.0) ) <= 300.0)
-		{
-			// Sometimes ground entity doesn't reset after horizontal velocity drops to below 300
-			// Set ground entity if horizontal velocity < 300 and ground entity is -1
-			SetEntPropEnt(client, Prop_Data, "m_hGroundEntity", TR_GetEntityIndex(traceHull));
-			//PrintToChatAll("Reset ground ent to %d", TR_GetEntityIndex(traceHull));
-		}*/
 		
 		CloseHandle(traceHull);
 		closed = true;
