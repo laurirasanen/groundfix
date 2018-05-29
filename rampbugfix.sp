@@ -1,8 +1,8 @@
 // Plugin for TF2 to fix inconsistencies with ramps
 
-#pragma semicolon 1 
+#pragma semicolon 1
 
-#include <sourcemod> 
+#include <sourcemod>
 #include <sdktools>
 #include <sdktools_trace>
 #include <tf2_stocks>
@@ -12,52 +12,56 @@
 #include <timers>
 #include <sdkhooks>
 
-public Plugin myinfo = 
-{ 
-    name = "rampbugfix", 
-    author = "Larry", 
-    description = "ramp fix", 
-    version = "3.0.0", 
-    url = "http://steamcommunity.com/id/pancakelarry" 
-}; 
+
+public Plugin myinfo =
+{
+	name = "rampbugfix",
+	author = "Larry",
+	description = "ramp fix",
+	version = "3.0.0",
+	url = "http://steamcommunity.com/id/pancakelarry"
+};
 
 bool TakeDamage[MAXPLAYERS];
 
 
+public OnPluginStart() {
+	// late load
+	for (int client = 1; client <= MaxClients; client++) {
+		if (IsClientInGame(client)) {
+			OnClientPutInServer(client);
+		}
+	}
+}
+
 public OnClientPutInServer(int client)
 {
 	SDKHook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKHook(client, SDKHook_PostThink, Hook_Client_PostThinkPost);
 }
+
 public OnClientDisconnect(int client)
 {
 	SDKUnhook(client, SDKHook_OnTakeDamage, OnTakeDamage);
+	SDKUnhook(client, SDKHook_PostThink, Hook_Client_PostThinkPost);
+}
+
+public Action Hook_Client_PostThinkPost(int client)
+{
+	if(TF2_GetClientTeam(client) == TFTeam_Spectator
+		|| TF2_GetClientTeam(client) == TFTeam_Unassigned
+		|| !(TF2_GetPlayerClass(client) == TFClass_Soldier
+		|| TF2_GetPlayerClass(client) == TFClass_DemoMan)
+		|| GetEntityMoveType(client) == MOVETYPE_NOCLIP
+		|| !IsPlayerAlive(client))
+			return;
+	SetClientGroundEntity(client);
 }
 
 public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage, int &damagetype, int &weapon, float damageForce[3], float damagePosition[3])
 {
 	TakeDamage[victim] = true;
 	return Plugin_Continue;
-}
-
-public OnGameFrame()
-{
-	for(int i = 1; i <= MaxClients; i++)
-	{
-		if(!IsClientInGame(i))
-			continue;
-		if(TF2_GetClientTeam(i) == TFTeam_Spectator || TF2_GetClientTeam(i) == TFTeam_Unassigned || !(TF2_GetPlayerClass(i) == TFClass_Soldier || TF2_GetPlayerClass(i) == TFClass_DemoMan) || GetEntityMoveType(i) == MOVETYPE_NOCLIP || !IsPlayerAlive(i))
-			continue;
-			
-		/*
-		// Do nothing if player takes damage
-		// this might stop the weird speed boost bug
-		if(TakeDamage[i])
-		{
-			TakeDamage[i] = false;
-			return;
-		}*/
-		SetClientGroundEntity(i);
-	}
 }
 
 // Redirect player velocity parallel to ramp before we hit it
@@ -71,8 +75,8 @@ void SetClientGroundEntity(int client)
 	GetEntPropVector(client, Prop_Data, "m_vecOrigin", vPos);
 	GetEntPropVector(client, Prop_Send, "m_vecMins", vMins);
 	GetEntPropVector(client, Prop_Send, "m_vecMaxs", vMaxs);
-	
-	// End position for trace				
+
+	// End position for trace
 	vEndPos[0] = vPos[0];
 	vEndPos[1] = vPos[1];
 	vEndPos[2] = vPos[2] - 3.0;
@@ -85,7 +89,7 @@ void SetClientGroundEntity(int client)
 		// Gets the normal vector of the surface under the player
 		float vPlane[3], vRealEndPos[3];
 		TR_GetPlaneNormal(traceHull, vPlane);
-		
+
 		// Ingore upside-down ramps
 		if(vPlane[2] <= 0.0)
 			return;
@@ -93,23 +97,23 @@ void SetClientGroundEntity(int client)
 		// Calculate direction of ramps surface
 		float vRampSurfaceDir[3];
 		vRampSurfaceDir[0] = -vPlane[0];
-		vRampSurfaceDir[1] = -vPlane[1];						
-			
+		vRampSurfaceDir[1] = -vPlane[1];
+
 		// HACK: insides of SquareRoots should not be negative but somehow they sometimes are..
 		if(1-Pow(vPlane[2], 2.0) < 0 || Pow(vRampSurfaceDir[0], 2.0) + Pow(vRampSurfaceDir[1], 2.0) < 0)
 		{
 			CloseHandle(traceHull);
 			return;
-		}	
-		
+		}
+
 		if(vPlane[2] > 0.0)
 		{
 			vRampSurfaceDir[2] = SquareRoot((1-Pow(vPlane[2], 2.0))/vPlane[2])*(SquareRoot(Pow(vRampSurfaceDir[0], 2.0) + Pow(vRampSurfaceDir[1], 2.0)));
-		}					
-		
+		}
+
 		// Gets the traceHull collision point directly below player
 		TR_GetEndPosition(vRealEndPos, traceHull);
-		
+
 		// check bunch of crap
 		// Remove friction if going up a ramp and horizontal velocity > 300
 		// Maybe this would also work for surfing along ramps horizontally, instead of just rampbugs going up a ramp?
@@ -118,7 +122,7 @@ void SetClientGroundEntity(int client)
 		{
 			SetEntPropEnt(client, Prop_Data, "m_hGroundEntity", -1);
 		}
-		
+
 		CloseHandle(traceHull);
 		closed = true;
 	}
@@ -135,10 +139,10 @@ public bool TraceRayDontHitSelf(int entity, int mask, any data)
 	// Don't return players or player projectiles
 	new entity_owner;
 	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
-	
+
 	if(entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients))
 	{
 		return true;
 	}
-	return false;	
+	return false;
 }
