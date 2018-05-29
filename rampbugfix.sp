@@ -18,7 +18,7 @@ public Plugin myinfo =
 	name = "rampbugfix",
 	author = "Larry",
 	description = "ramp fix",
-	version = "3.0.0",
+	version = "3.0.1",
 	url = "http://steamcommunity.com/id/pancakelarry"
 };
 
@@ -64,7 +64,6 @@ public Action OnTakeDamage(int victim, int &attacker, int &inflictor, float &dam
 	return Plugin_Continue;
 }
 
-// Redirect player velocity parallel to ramp before we hit it
 void SetClientGroundEntity(int client)
 {
 	// Client props
