@@ -1,0 +1,34 @@
+"Games"
+{
+    "#default"
+    {
+        "Addresses"
+        {
+            "g_pGameMovement"
+            {
+                "linux"
+                {
+                    "signature" "TheGameMovement"
+                }
+                "read" "0"
+            }
+        }
+        "Signatures"
+        {
+            "TheGameMovement"
+            {
+                "library"       "server"
+                "windows"       "@g_pGameMovement"
+                "linux"         "@g_pGameMovement"
+            }
+        }
+        "Offsets"
+        {
+            "SetGroundEntity"
+            {
+                "windows"   "53"
+                "linux"     "53"
+            }
+        }
+    }
+}
