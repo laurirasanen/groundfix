@@ -6,20 +6,20 @@
         {
             "SetGroundEntity"
             {
-				"signature"    "SetGroundEntitySig"
-				"callconv"     "thiscall"
-				"return"       "void"
-				"this"         "address"
-				"arguments"
-				{
-					"trace"
-					{
-						"type"    "objectptr"
-					}
-				}
+                "signature"    "SetGroundEntitySig"
+                "callconv"     "thiscall"
+                "return"       "void"
+                "this"         "address"
+                "arguments"
+                {
+                    "trace"
+                    {
+                        "type"    "objectptr"
+                    }
+                }
             }
         }
-		"Signatures"
+        "Signatures"
         {
             "SetGroundEntitySig"
             {
