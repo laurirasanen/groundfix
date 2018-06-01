@@ -2,33 +2,31 @@
 {
     "#default"
     {
-        "Addresses"
-        {
-            "g_pGameMovement"
-            {
-                "linux"
-                {
-                    "signature" "TheGameMovement"
-                }
-                "read" "0"
-            }
-        }
-        "Signatures"
-        {
-            "TheGameMovement"
-            {
-                "library"       "server"
-                "windows"       "@g_pGameMovement"
-                "linux"         "@g_pGameMovement"
-            }
-        }
-        "Offsets"
+        "Functions"
         {
             "SetGroundEntity"
             {
-                "windows"   "53"
-                "linux"     "53"
+				"signature"    "SetGroundEntitySig"
+				"callconv"     "thiscall"
+				"return"       "void"
+				"this"         "address"
+				"arguments"
+				{
+					"trace"
+					{
+						"type"    "objectptr"
+					}
+				}
             }
+        }
+		"Signatures"
+        {
+            "SetGroundEntitySig"
+            {
+                "library"    "server"
+                "windows"    "\x55\x8B\xEC\x56\x8B\xF1\x57\x6A\x52"
+                "linux"      "\x55\x89\xE5\x57\x56\x53\x83\xEC\x3C\x8B\x5D\x08\xC7\x44\x24\x04\x52\x00\x00\x00\x8B\x75\x0C"
+            }	
         }
     }
 }
