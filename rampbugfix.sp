@@ -11,44 +11,71 @@ public Plugin myinfo =
 	name = "rampbugfix",
 	author = "jayess + Larry",
 	description = "ramp fix",
-	version = "3.0.2",
+	version = "3.0.3",
 	url = "http://steamcommunity.com/id/jayessZA + http://steamcommunity.com/id/pancakelarry"
 };
 
-Handle g_hSetGroundEntityDetour;
+Handle g_hSetGroundEntityHook;
 
 public void OnPluginStart() {
 	Handle hGameData = LoadGameConfigFile("rampbugfix.games");
 
 	if (!hGameData)
-	{
 		SetFailState("Missing gamedata!");
+
+	StartPrepSDKCall(SDKCall_Static);
+	if(!PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CreateInterface"))
+	{
+		SetFailState("Failed to get CreateInterface");
+		CloseHandle(hGameData);
+	}
+
+	PrepSDKCall_AddParameter(SDKType_String, SDKPass_Pointer);
+	PrepSDKCall_AddParameter(SDKType_PlainOldData, SDKPass_Pointer, VDECODE_FLAG_ALLOWNULL);
+	PrepSDKCall_SetReturnInfo(SDKType_PlainOldData, SDKPass_Plain);
+
+	char iface[64];
+	if(!GameConfGetKeyValue(hGameData, "GameMovementInterface", iface, sizeof(iface)))
+	{
+		SetFailState("Failed to get game movement interface name");
+		CloseHandle(hGameData);
+	}
+
+	Handle call = EndPrepSDKCall();
+	Address pGameMovement = SDKCall(call, iface, 0);
+	CloseHandle(call);
+
+	if(!pGameMovement)
+	{
+		SetFailState("Failed to get game movement pointer");
+	}
+
+	int iOffset = GameConfGetOffset(hGameData, "SetGroundEntity");
+	g_hSetGroundEntityHook = DHookCreate(
+		iOffset, HookType_Raw, ReturnType_Void, ThisPointer_Address, PreSetGroundEntity);
+
+	if(g_hSetGroundEntityHook == null) {
+		SetFailState("Failed to create SetGroundEntity hook.");
 		return;
 	}
-	
-	g_hSetGroundEntityDetour = DHookCreateFromConf(hGameData, "SetGroundEntity");
 
-	if(!g_hSetGroundEntityDetour) 
-		SetFailState("Failed to create SetGroundEntity hook.");
+	DHookAddParam(g_hSetGroundEntityHook, HookParamType_ObjectPtr);
+	DHookRaw(g_hSetGroundEntityHook, false, pGameMovement);
+
 	delete hGameData;
-	
-	if (!DHookEnableDetour(g_hSetGroundEntityDetour, false, Detour_SetGroundEntity))
-		SetFailState("Failed to detour SetGroundEntity.");					
-
-    PrintToServer("SetGroundEntity detoured!");
 }
 
-public MRESReturn Detour_SetGroundEntity(Address pThis, Handle hParams) {
-		
+public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 	// not setting ground entity
-	if (DHookIsNullParam(hParams, 2)) return MRES_Ignored;
+	if (DHookIsNullParam(hParams, 1)) return MRES_Ignored;
 
-	Address clientAddress = LoadFromAddress(pThis + view_as<Address>(4), NumberType_Int32);
+	int clientAddress = LoadFromAddress(pThis + view_as<Address>(4), NumberType_Int32);
 	int client;
 
 	for (int c = 1; c <= MaxClients; c++)
 	{
-		if (IsClientInGame(c) && GetEntityAddress(c) == clientAddress) {
+		if (IsClientInGame(c)
+			&& GetEntityAddress(c) == view_as<Address>(clientAddress)) {
 			client = c;
 			break;
 		}
@@ -56,7 +83,7 @@ public MRESReturn Detour_SetGroundEntity(Address pThis, Handle hParams) {
 
 	float vPlane[3];
 	// retrieve plane normal from trace object
-	DHookGetParamObjectPtrVarVector(hParams, 2, 24, ObjectValueType_Vector, vPlane);
+	DHookGetParamObjectPtrVarVector(hParams, 1, 24, ObjectValueType_Vector, vPlane);
 
 	float vVelocity[3];
 	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVelocity);
