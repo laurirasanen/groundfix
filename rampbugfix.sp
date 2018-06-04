@@ -88,8 +88,8 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 	float vVelocity[3];
 	GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", vVelocity);
 
-	if(GetVectorDotProduct(vVelocity, vPlane) < 0.0 // moving up slope
-		&& vPlane[2] < 1 /* not flat ground */)
+	if(1 > vPlane[2] > 0.7 // not flat ground, is a slope, but not a surf ramp (sanity check)
+		&& GetVectorDotProduct(vVelocity, vPlane) < 0.0 /* moving up slope */)
 	{
 		float vPredictedVel[3];
 		ClipVelocity(vVelocity, vPlane, vPredictedVel);
