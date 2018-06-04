@@ -11,7 +11,7 @@ public Plugin myinfo =
 	name = "rampbugfix",
 	author = "jayess + Larry",
 	description = "ramp fix",
-	version = "3.0.3",
+	version = "3.0.4",
 	url = "http://steamcommunity.com/id/jayessZA + http://steamcommunity.com/id/pancakelarry"
 };
 
@@ -81,19 +81,56 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		}
 	}
 
+	if (!client) return MRES_Ignored;
+
 	float vPlane[3];
 	// retrieve plane normal from trace object
 	DHookGetParamObjectPtrVarVector(hParams, 1, 24, ObjectValueType_Vector, vPlane);
 
 	float vVelocity[3];
-	GetEntPropVector(client, Prop_Data, "m_vecVelocity", vVelocity);
+	GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", vVelocity);
 
-	if(GetVectorDotProduct(vVelocity, vPlane) < 0.0 // moving up slope
-		&& 0 < vPlane[2] < 1 // not flat ground
-		&& SquareRoot( Pow(vVelocity[0], 2.0) + Pow(vVelocity[1], 2.0) ) > 300.0)
+	if(1 > vPlane[2] > 0.7 // not flat ground, is a slope, but not a surf ramp (sanity check)
+		&& GetVectorDotProduct(vVelocity, vPlane) < 0.0 /* moving up slope */)
 	{
-		PrintToChat(client, "Prevented slope bug.");
-		return MRES_Supercede;
+		float vPredictedVel[3];
+		ClipVelocity(vVelocity, vPlane, vPredictedVel);
+
+		// would be sliding up slope
+		// https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/game/shared/gamemovement.cpp#L4591
+		if (vPredictedVel[2] > 250.0)
+		{
+			PrintToChat(client, "Prevented slope bug.");
+			return MRES_Supercede;
+		}
 	}
 	return MRES_Ignored;
+}
+
+// from https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/game/shared/gamemovement.cpp#L3145
+void ClipVelocity(float[3] inVelocity, float[3] normal, float[3] outVelocity)
+{
+	float backoff;
+	float change;
+
+	// Determine how far along plane to slide based on incoming direction.
+	backoff = GetVectorDotProduct(inVelocity, normal);
+
+	for (int i = 0; i < 3; i++)
+	{
+		change = normal[i] * backoff;
+		outVelocity[i] = inVelocity[i] - change;
+	}
+
+	// iterate once to make sure we aren't still moving through the plane
+	float adjust = GetVectorDotProduct(outVelocity, normal);
+	if (adjust < 0.0)
+	{
+		float adjustedNormal[3];
+		for (int i = 0; i < 3; i++)
+		{
+			adjustedNormal[i] = normal[i] * adjust;
+			outVelocity[i] -= adjustedNormal[i];
+		}
+	}
 }
