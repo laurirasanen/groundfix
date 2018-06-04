@@ -81,6 +81,8 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		}
 	}
 
+	if (!client) return;
+
 	float vPlane[3];
 	// retrieve plane normal from trace object
 	DHookGetParamObjectPtrVarVector(hParams, 1, 24, ObjectValueType_Vector, vPlane);
