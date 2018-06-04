@@ -81,7 +81,7 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		}
 	}
 
-	if (!client) return;
+	if (!client) return MRES_Ignored;
 
 	float vPlane[3];
 	// retrieve plane normal from trace object
