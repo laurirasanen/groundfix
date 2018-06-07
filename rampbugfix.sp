@@ -5,13 +5,16 @@
 #include <sourcemod>
 #include <dhooks>
 #include <sdktools>
+#include <halflife>
+
+#define SND_BANANASLIP "misc/banana_slip.wav"
 
 public Plugin myinfo =
 {
 	name = "rampbugfix",
 	author = "jayess + Larry",
 	description = "ramp fix",
-	version = "3.0.4",
+	version = "3.0.5",
 	url = "http://steamcommunity.com/id/jayessZA + http://steamcommunity.com/id/pancakelarry"
 };
 
@@ -63,6 +66,12 @@ public void OnPluginStart() {
 	DHookRaw(g_hSetGroundEntityHook, false, pGameMovement);
 
 	delete hGameData;
+	PrecacheSound(SND_BANANASLIP);
+}
+
+public void OnClientPutInServer(client)
+{
+	EmitSoundToClient(client, SND_BANANASLIP, _, _, _, _, 0.0);
 }
 
 public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
@@ -101,6 +110,7 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		if (vPredictedVel[2] > 250.0)
 		{
 			PrintToChat(client, "Prevented slope bug.");
+			EmitSoundToClient(client, SND_BANANASLIP);
 			return MRES_Supercede;
 		}
 	}
