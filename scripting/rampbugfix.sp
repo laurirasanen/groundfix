@@ -9,6 +9,9 @@
 
 #define SND_BANANASLIP "misc/banana_slip.wav"
 
+ConVar g_Cvar_slidefix;
+ConVar g_Cvar_edgefix;
+
 public Plugin myinfo =
 {
 	name = "rampbugfix",
@@ -67,6 +70,14 @@ public void OnPluginStart() {
 
 	delete hGameData;
 	PrecacheSound(SND_BANANASLIP);
+
+	g_Cvar_slidefix = CreateConVar("sm_groundfix_slide", "1", "Enables/disables slide fix for slopes.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_Cvar_edgefix = CreateConVar("sm_groundfix_edge", "1", "Enables/disables edgebug fix for any fall height.", FCVAR_NONE, true, 0.0, true, 1.0);
+}
+
+public void OnMapStart()
+{
+	PrecacheSound(SND_BANANASLIP);
 }
 
 public void OnClientPutInServer(client)
@@ -92,6 +103,9 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 
 	if (!client) return MRES_Ignored;
 
+	// ignore player in noclip
+	if (GetEntityMoveType(client) != MOVETYPE_WALK) return MRES_Ignored;
+
 	float vPlane[3];
 	// retrieve plane normal from trace object
 	DHookGetParamObjectPtrVarVector(hParams, 1, 24, ObjectValueType_Vector, vPlane);
@@ -99,7 +113,64 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 	float vVelocity[3];
 	GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", vVelocity);
 
-	if(1 > vPlane[2] > 0.7 // not flat ground, is a slope, but not a surf ramp (sanity check)
+	// * this bit fixes edgebugs to be consistent from any fall height
+	// * it should not make them otherwise easier at all
+	// was not on ground
+	if (g_Cvar_edgefix.BoolValue
+		&& GetEntPropEnt(client, Prop_Send, "m_hGroundEntity") == -1)
+	{
+		// get CBaseTrace->fraction
+		float groundTraceFraction = DHookGetParamObjectPtrVar(hParams, 1, 44, ObjectValueType_Float);
+
+		float groundTraceEndPos[3];
+		// get CBaseTrace->endpos
+		DHookGetParamObjectPtrVarVector(hParams, 1, 12, ObjectValueType_Vector, groundTraceEndPos);
+
+		float vPredictedVel[3];
+		// clip velocity to plane normal
+		ClipVelocity(vVelocity, vPlane, vPredictedVel);
+
+		float vPredictedOrigin[3];
+		vPredictedOrigin[0] = groundTraceEndPos[0];
+		vPredictedOrigin[1] = groundTraceEndPos[1];
+		vPredictedOrigin[2] = groundTraceEndPos[2];
+
+		ScaleVector(vPredictedVel, GetGameFrameTime());
+		ScaleVector(vPredictedVel, 1 - groundTraceFraction);
+
+		AddVectors(vPredictedOrigin, vPredictedVel, vPredictedOrigin);
+
+		float vMins[3], vMaxs[3];
+
+		GetEntPropVector(client, Prop_Send, "m_vecMins", vMins);
+		GetEntPropVector(client, Prop_Send, "m_vecMaxs", vMaxs);
+
+		Handle trace;
+
+		// check to see if we hit anything on the way to the predicted origin
+		trace = TR_TraceHullFilterEx(groundTraceEndPos, vPredictedOrigin, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+
+		if (!TR_DidHit(trace)) {
+			CloseHandle(trace);
+			float vTraceEndPos[3];
+			vTraceEndPos[0] = vPredictedOrigin[0];
+			vTraceEndPos[1] = vPredictedOrigin[1];
+			vTraceEndPos[2] = vPredictedOrigin[2] - 2.0;
+
+			// check if predicted origin would be standing on ground (<= 2 units above)
+			trace = TR_TraceHullFilterEx(vPredictedOrigin, vTraceEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+			if (!TR_DidHit(trace)) {
+				PrintToChat(client, "Prevented failed edgebug!");
+				CloseHandle(trace);
+				EmitSoundToClient(client, SND_BANANASLIP);
+				return MRES_Supercede;
+			}
+			CloseHandle(trace);
+		}
+	}
+
+	if(g_Cvar_slidefix
+		&& 1 > vPlane[2] > 0.7 // not flat ground, is a slope, but not a surf ramp (sanity check)
 		&& GetVectorDotProduct(vVelocity, vPlane) < 0.0 /* moving up slope */)
 	{
 		float vPredictedVel[3];
@@ -143,4 +214,17 @@ void ClipVelocity(float[3] inVelocity, float[3] normal, float[3] outVelocity)
 			outVelocity[i] -= adjustedNormal[i];
 		}
 	}
+}
+
+public bool TraceRayDontHitSelf(int entity, int mask, any data)
+{
+	// Don't return players or player projectiles
+	int entity_owner;
+	entity_owner = GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity");
+
+	if(entity != data && !(0 < entity <= MaxClients) && !(0 < entity_owner <= MaxClients))
+	{
+		return true;
+	}
+	return false;
 }
