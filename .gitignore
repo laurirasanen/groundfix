@@ -1,4 +1,2 @@
-compile.*
-spcomp.exe
-/include
-/compiled
+scripting/*
+!scripting/*.sp
