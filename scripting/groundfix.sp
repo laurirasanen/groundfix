@@ -1,4 +1,4 @@
-// Plugin for TF2 to fix inconsistencies with ramps
+// Plugin for TF2 to fix inconsistencies with ground movement
 
 #pragma semicolon 1
 
@@ -14,17 +14,17 @@ ConVar g_Cvar_edgefix;
 
 public Plugin myinfo =
 {
-	name = "rampbugfix",
+	name = "groundfix",
 	author = "jayess + Larry",
-	description = "ramp fix",
-	version = "3.0.5",
+	description = "movement fixes for ground bugs",
+	version = "3.1.0",
 	url = "http://steamcommunity.com/id/jayessZA + http://steamcommunity.com/id/pancakelarry"
 };
 
 Handle g_hSetGroundEntityHook;
 
 public void OnPluginStart() {
-	Handle hGameData = LoadGameConfigFile("rampbugfix.games");
+	Handle hGameData = LoadGameConfigFile("groundfix.games");
 
 	if (!hGameData)
 		SetFailState("Missing gamedata!");
