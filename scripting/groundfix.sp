@@ -1,4 +1,5 @@
 // Plugin for TF2 to fix inconsistencies with ground movement
+//#define DRAWBEAM_TESTING
 
 #pragma semicolon 1
 
@@ -6,6 +7,9 @@
 #include <dhooks>
 #include <sdktools>
 #include <halflife>
+#if defined DRAWBEAM_TESTING
+	#include <smlib>
+#endif
 
 #define SND_BANANASLIP "misc/banana_slip.wav"
 
@@ -113,8 +117,9 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 	float vVelocity[3];
 	GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", vVelocity);
 
-	// * this bit fixes edgebugs to be consistent from any fall height
-	// * it should not make them otherwise easier at all
+	// * this bit fixes 1-unit-wide edgebugs to be consistent from any fall height
+	// * as a side effect, it makes edgebugs slightly easier:
+	// * instead of having to land ahead of the edge between ticks, you now only need to land 1 unit behind
 	// was not on ground
 	if (g_Cvar_edgefix.BoolValue
 		&& GetEntPropEnt(client, Prop_Send, "m_hGroundEntity") == -1)
@@ -130,43 +135,97 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		// clip velocity to plane normal
 		ClipVelocity(vVelocity, vPlane, vPredictedVel);
 
-		float vPredictedOrigin[3];
-		vPredictedOrigin[0] = groundTraceEndPos[0];
-		vPredictedOrigin[1] = groundTraceEndPos[1];
-		vPredictedOrigin[2] = groundTraceEndPos[2];
-
+		// velocity per tick
 		ScaleVector(vPredictedVel, GetGameFrameTime());
+		// remaining distance traveled from ground hitpos
 		ScaleVector(vPredictedVel, 1 - groundTraceFraction);
 
-		AddVectors(vPredictedOrigin, vPredictedVel, vPredictedOrigin);
+		float vAddVel[3];
+		NormalizeVector(vPredictedVel, vAddVel);
+
+		// scale the velocity to account for slight angles relative to the edge
+		ScaleVector(vAddVel, 1.05);
 
 		float vMins[3], vMaxs[3];
 
 		GetEntPropVector(client, Prop_Send, "m_vecMins", vMins);
 		GetEntPropVector(client, Prop_Send, "m_vecMaxs", vMaxs);
 
+		float vBacktraceOrigin[3];
+		vBacktraceOrigin[0] = groundTraceEndPos[0];
+		vBacktraceOrigin[1] = groundTraceEndPos[1];
+		vBacktraceOrigin[2] = groundTraceEndPos[2];
+
+		SubtractVectors(vBacktraceOrigin, vAddVel, vBacktraceOrigin);
+
 		Handle trace;
 
-		// check to see if we hit anything on the way to the predicted origin
-		trace = TR_TraceHullFilterEx(groundTraceEndPos, vPredictedOrigin, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+		// trace backwards to find back edge of the plane
+		trace = TR_TraceHullFilterEx(groundTraceEndPos, vBacktraceOrigin, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
 
-		if (!TR_DidHit(trace)) {
+		// if we didn't hit another plane, the edge is too wide
+		if (TR_DidHit(trace))
+		{
 			CloseHandle(trace);
-			float vTraceEndPos[3];
-			vTraceEndPos[0] = vPredictedOrigin[0];
-			vTraceEndPos[1] = vPredictedOrigin[1];
-			vTraceEndPos[2] = vPredictedOrigin[2] - 2.0;
+			float vStartPos[3];
+			TR_GetEndPosition(vStartPos, trace);
 
-			// check if predicted origin would be standing on ground (<= 2 units above)
-			trace = TR_TraceHullFilterEx(vPredictedOrigin, vTraceEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
-			if (!TR_DidHit(trace)) {
-				PrintToChat(client, "Prevented failed edgebug!");
+			float vEndPos[3];
+			vEndPos[0] = vStartPos[0];
+			vEndPos[1] = vStartPos[1];
+			vEndPos[2] = vStartPos[2];
+
+			AddVectors(vEndPos, vAddVel, vEndPos);
+
+			// check to see if we hit anything on the way to the predicted origin
+			trace = TR_TraceHullFilterEx(vStartPos, vEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+
+			if (!TR_DidHit(trace))
+			{
 				CloseHandle(trace);
-				EmitSoundToClient(client, SND_BANANASLIP);
-				return MRES_Supercede;
+				float vTraceEndPos[3];
+				vTraceEndPos[0] = vEndPos[0];
+				vTraceEndPos[1] = vEndPos[1];
+				vTraceEndPos[2] = vEndPos[2] - 2.0;
+
+				// check if predicted origin would be standing on ground (<= 2 units above)
+				trace = TR_TraceHullFilterEx(vEndPos, vTraceEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
+				if (!TR_DidHit(trace)) {
+					#if defined DRAWBEAM_TESTING
+						float m_vecAbsOrigin[3];
+						GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", m_vecAbsOrigin);
+
+						float vBoxPrimeMins[3];
+						float vBoxPrimeMaxs[3];
+						AddVectors(m_vecAbsOrigin, vMins, vBoxPrimeMins);
+						AddVectors(m_vecAbsOrigin, vMaxs, vBoxPrimeMaxs);
+
+						float vBoxOneMins[3];
+						float vBoxOneMaxs[3];
+						AddVectors(vStartPos, vMins, vBoxOneMins);
+						AddVectors(vStartPos, vMaxs, vBoxOneMaxs);
+
+						float vBoxTwoMins[3];
+						float vBoxTwoMaxs[3];
+						AddVectors(vEndPos, vMins, vBoxTwoMins);
+						AddVectors(vEndPos, vMaxs, vBoxTwoMaxs);
+
+						int material = PrecacheModel("materials/effects/blueblacklargebeam.vmt");
+
+						Effect_DrawBeamBoxToClient(client, vBoxPrimeMins, vBoxPrimeMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 1.0, {255, 255, 0, 255}, 0);
+						Effect_DrawBeamBoxToClient(client, vBoxOneMins, vBoxOneMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 1.0, {0, 255, 0, 255}, 0);
+						Effect_DrawBeamBoxToClient(client, vBoxTwoMins, vBoxTwoMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 1.0, {100, 255, 255, 255}, 0);
+					#endif
+
+					PrintToChat(client, "Prevented failed edgebug!");
+					CloseHandle(trace);
+					EmitSoundToClient(client, SND_BANANASLIP);
+					return MRES_Supercede;
+				}
+				CloseHandle(trace);
 			}
-			CloseHandle(trace);
 		}
+		CloseHandle(trace);
 	}
 
 	if(g_Cvar_slidefix
