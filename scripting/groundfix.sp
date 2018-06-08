@@ -76,7 +76,7 @@ public void OnPluginStart() {
 	PrecacheSound(SND_BANANASLIP);
 
 	g_Cvar_slidefix = CreateConVar("sm_groundfix_slide", "1", "Enables/disables slide fix for slopes.", FCVAR_NONE, true, 0.0, true, 1.0);
-	g_Cvar_edgefix = CreateConVar("sm_groundfix_edge", "1", "Enables/disables edgebug fix for any fall height.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_Cvar_edgefix = CreateConVar("sm_groundfix_edge", "0", "Enables/disables edgebug fix for any fall height.", FCVAR_NONE, true, 0.0, true, 1.0);
 }
 
 public void OnMapStart()
