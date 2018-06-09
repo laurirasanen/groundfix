@@ -21,7 +21,7 @@ public Plugin myinfo =
 	name = "groundfix",
 	author = "jayess + Larry",
 	description = "movement fixes for ground bugs",
-	version = "3.1.0",
+	version = "3.1.1",
 	url = "http://steamcommunity.com/id/jayessZA + http://steamcommunity.com/id/pancakelarry"
 };
 
@@ -76,7 +76,7 @@ public void OnPluginStart() {
 	PrecacheSound(SND_BANANASLIP);
 
 	g_Cvar_slidefix = CreateConVar("sm_groundfix_slide", "1", "Enables/disables slide fix for slopes.", FCVAR_NONE, true, 0.0, true, 1.0);
-	g_Cvar_edgefix = CreateConVar("sm_groundfix_edge", "0", "Enables/disables edgebug fix for any fall height.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_Cvar_edgefix = CreateConVar("sm_groundfix_edge", "0", "Enables/disables edgebug fall height fix.", FCVAR_NONE, true, 0.0, true, 1.0);
 }
 
 public void OnMapStart()
@@ -117,9 +117,11 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 	float vVelocity[3];
 	GetEntPropVector(client, Prop_Data, "m_vecAbsVelocity", vVelocity);
 
-	// * this bit fixes 1-unit-wide edgebugs to be consistent from any fall height
-	// * as a side effect, it makes edgebugs slightly easier:
-	// * instead of having to land ahead of the edge between ticks, you now only need to land 1 unit behind
+	// this bit aims to fix edgebugs on 1-unit-wide brushes to be consistent from any fall height
+	// these are used as a mechanic in some TF2 jump maps
+	// it shouldn't make other edgebugs easier at all, due to the somewhat hacky width check
+	// TODO: check to see if there are any that use greater widths
+
 	// was not on ground
 	if (g_Cvar_edgefix.BoolValue
 		&& GetEntPropEnt(client, Prop_Send, "m_hGroundEntity") == -1)
@@ -143,8 +145,8 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		float vAddVel[3];
 		NormalizeVector(vPredictedVel, vAddVel);
 
-		// scale the velocity to account for slight angles relative to the edge
-		ScaleVector(vAddVel, 1.05);
+		// scale the velocity by the diagonal length of a 1-unit square to account for varied movement direction
+		ScaleVector(vAddVel, 1.41421356);
 
 		float vMins[3], vMaxs[3];
 
@@ -160,15 +162,15 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 
 		Handle trace;
 
-		// trace backwards to find back edge of the plane
+		// trace backwards to find another plane intersecting our ground
 		trace = TR_TraceHullFilterEx(groundTraceEndPos, vBacktraceOrigin, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
 
-		// if we didn't hit another plane, the edge is too wide
+		// if we didn't hit another plane, the brush is too wide in our movement direction
 		if (TR_DidHit(trace))
 		{
-			CloseHandle(trace);
 			float vStartPos[3];
 			TR_GetEndPosition(vStartPos, trace);
+			CloseHandle(trace);
 
 			float vEndPos[3];
 			vEndPos[0] = vStartPos[0];
@@ -190,7 +192,10 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 
 				// check if predicted origin would be standing on ground (<= 2 units above)
 				trace = TR_TraceHullFilterEx(vEndPos, vTraceEndPos, vMins, vMaxs, MASK_PLAYERSOLID_BRUSHONLY, TraceRayDontHitSelf, client);
-				if (!TR_DidHit(trace)) {
+				float vGroundNormal[3];
+				TR_GetPlaneNormal(trace, vGroundNormal);
+
+				if (!TR_DidHit(trace) || vGroundNormal[2] <= 0.7) {
 					#if defined DRAWBEAM_TESTING
 						float m_vecAbsOrigin[3];
 						GetEntPropVector(client, Prop_Data, "m_vecAbsOrigin", m_vecAbsOrigin);
@@ -210,11 +215,11 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 						AddVectors(vEndPos, vMins, vBoxTwoMins);
 						AddVectors(vEndPos, vMaxs, vBoxTwoMaxs);
 
-						int material = PrecacheModel("materials/effects/blueblacklargebeam.vmt");
+						int material = PrecacheModel("materials/effects/beam_generic_2.vmt");
 
-						Effect_DrawBeamBoxToClient(client, vBoxPrimeMins, vBoxPrimeMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 1.0, {255, 255, 0, 255}, 0);
-						Effect_DrawBeamBoxToClient(client, vBoxOneMins, vBoxOneMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 1.0, {0, 255, 0, 255}, 0);
-						Effect_DrawBeamBoxToClient(client, vBoxTwoMins, vBoxTwoMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 1.0, {100, 255, 255, 255}, 0);
+						Effect_DrawBeamBoxToClient(client, vBoxPrimeMins, vBoxPrimeMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 0.0, {255, 255, 0, 255}, 0);
+						Effect_DrawBeamBoxToClient(client, vBoxOneMins, vBoxOneMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 0.0, {0, 255, 0, 255}, 0);
+						Effect_DrawBeamBoxToClient(client, vBoxTwoMins, vBoxTwoMaxs, material, material, 0, 0, 10.0, 0.1, 0.1, 0, 0.0, {0, 200, 255, 255}, 0);
 					#endif
 
 					PrintToChat(client, "Prevented failed edgebug!");
@@ -222,10 +227,16 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 					EmitSoundToClient(client, SND_BANANASLIP);
 					return MRES_Supercede;
 				}
-				CloseHandle(trace);
+				else
+				{
+					CloseHandle(trace);
+				}
 			}
 		}
-		CloseHandle(trace);
+		else
+		{
+			CloseHandle(trace);
+		}
 	}
 
 	if(g_Cvar_slidefix
