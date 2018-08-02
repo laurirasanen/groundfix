@@ -15,6 +15,7 @@
 
 ConVar g_Cvar_slidefix;
 ConVar g_Cvar_edgefix;
+ConVar g_Cvar_banana;
 
 public Plugin myinfo =
 {
@@ -77,6 +78,7 @@ public void OnPluginStart() {
 
 	g_Cvar_slidefix = CreateConVar("sm_groundfix_slide", "1", "Enables/disables slide fix for slopes.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_Cvar_edgefix = CreateConVar("sm_groundfix_edge", "0", "Enables/disables edgebug fall height fix.", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_Cvar_banana = CreateConVar("sm_groundfix_banana", "1", "Enables/disables banana slip sound on slide fix", FCVAR_NONE, true, 0.0, true, 1.0);
 }
 
 public void OnMapStart()
@@ -251,7 +253,10 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		if (vPredictedVel[2] > 250.0)
 		{
 			PrintToChat(client, "Prevented slope bug.");
-			EmitSoundToClient(client, SND_BANANASLIP);
+			if (g_Cvar_banana)
+			{
+				EmitSoundToClient(client, SND_BANANASLIP);
+			}
 			return MRES_Supercede;
 		}
 	}
