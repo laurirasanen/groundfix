@@ -16,6 +16,7 @@
 ConVar g_Cvar_slidefix;
 ConVar g_Cvar_edgefix;
 ConVar g_Cvar_banana;
+ConVar g_Cvar_chat;
 
 public Plugin myinfo =
 {
@@ -78,7 +79,8 @@ public void OnPluginStart() {
 
 	g_Cvar_slidefix = CreateConVar("sm_groundfix_slide", "1", "Enables/disables slide fix for slopes.", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_Cvar_edgefix = CreateConVar("sm_groundfix_edge", "0", "Enables/disables edgebug fall height fix.", FCVAR_NONE, true, 0.0, true, 1.0);
-	g_Cvar_banana = CreateConVar("sm_groundfix_banana", "1", "Enables/disables banana slip sound on slide fix", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_Cvar_banana = CreateConVar("sm_groundfix_banana", "0", "Enables/disables banana slip sound on slide fix", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_Cvar_chat = CreateConVar("sm_groundfix_chat", "0", "Enables/disables chat message on slide fix", FCVAR_NONE, true, 0.0, true, 1.0);
 }
 
 public void OnMapStart()
@@ -252,7 +254,10 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		// https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/game/shared/gamemovement.cpp#L4591
 		if (vPredictedVel[2] > 250.0)
 		{
-			PrintToChat(client, "Prevented slope bug.");
+			if (g_Cvar_chat)
+			{
+				PrintToChat(client, "Prevented slope bug.");
+			}
 			if (g_Cvar_banana)
 			{
 				EmitSoundToClient(client, SND_BANANASLIP);
