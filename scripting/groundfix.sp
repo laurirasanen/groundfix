@@ -23,7 +23,7 @@ public Plugin myinfo =
 	name = "groundfix",
 	author = "jayess + Larry",
 	description = "movement fixes for ground bugs",
-	version = "3.1.2",
+	version = "3.1.3",
 	url = "http://steamcommunity.com/id/jayessZA + http://steamcommunity.com/id/pancakelarry"
 };
 
