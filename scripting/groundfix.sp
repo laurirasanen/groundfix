@@ -243,7 +243,7 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		}
 	}
 
-	if(g_Cvar_slidefix
+	if(g_Cvar_slidefix.BoolValue
 		&& 1 > vPlane[2] > 0.7 // not flat ground, is a slope, but not a surf ramp (sanity check)
 		&& GetVectorDotProduct(vVelocity, vPlane) < 0.0 /* moving up slope */)
 	{
@@ -254,11 +254,11 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		// https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/game/shared/gamemovement.cpp#L4591
 		if (vPredictedVel[2] > 250.0)
 		{
-			if (g_Cvar_chat)
+			if (g_Cvar_chat.BoolValue)
 			{
 				PrintToChat(client, "Prevented slope bug.");
 			}
-			if (g_Cvar_banana)
+			if (g_Cvar_banana.BoolValue)
 			{
 				EmitSoundToClient(client, SND_BANANASLIP);
 			}
