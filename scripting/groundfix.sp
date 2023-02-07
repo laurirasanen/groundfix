@@ -269,7 +269,7 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 }
 
 // from https://github.com/ValveSoftware/source-sdk-2013/blob/master/mp/src/game/shared/gamemovement.cpp#L3145
-void ClipVelocity(float[3] inVelocity, float[3] normal, float[3] outVelocity)
+void ClipVelocity(float inVelocity[3], float normal[3], float outVelocity[3])
 {
 	float backoff;
 	float change;
