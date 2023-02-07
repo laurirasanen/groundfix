@@ -244,7 +244,8 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 	}
 
 	if(g_Cvar_slidefix.BoolValue
-		&& 1 > vPlane[2] > 0.7 // not flat ground, is a slope, but not a surf ramp (sanity check)
+		&& vPlane[2] < 1.0
+		&& vPlane[2] > 0.7 // not flat ground, is a slope, but not a surf ramp (sanity check)
 		&& GetVectorDotProduct(vVelocity, vPlane) < 0.0 /* moving up slope */)
 	{
 		float vPredictedVel[3];
