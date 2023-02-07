@@ -5,9 +5,15 @@
 #pragma newdecls required
 
 #include <sourcemod>
-#include <dhooks>
 #include <sdktools>
 #include <halflife>
+
+#define REQUIRE_EXTENSIONS
+#define AUTOLOAD_EXTENSIONS
+#include <dhooks>
+#undef REQUIRE_EXTENSIONS
+#undef AUTOLOAD_EXTENSIONS
+
 #if defined DRAWBEAM_TESTING
 	#include <smlib>
 #endif
