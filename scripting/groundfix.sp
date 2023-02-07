@@ -38,8 +38,8 @@ public void OnPluginStart() {
 	StartPrepSDKCall(SDKCall_Static);
 	if(!PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CreateInterface"))
 	{
-		SetFailState("Failed to get CreateInterface");
 		CloseHandle(hGameData);
+		SetFailState("Failed to get CreateInterface!");
 	}
 
 	PrepSDKCall_AddParameter(SDKType_String, SDKPass_Pointer);
@@ -49,8 +49,8 @@ public void OnPluginStart() {
 	char iface[64];
 	if(!GameConfGetKeyValue(hGameData, "GameMovementInterface", iface, sizeof(iface)))
 	{
-		SetFailState("Failed to get game movement interface name");
 		CloseHandle(hGameData);
+		SetFailState("Failed to get game movement interface name!");
 	}
 
 	Handle call = EndPrepSDKCall();
@@ -67,6 +67,7 @@ public void OnPluginStart() {
 		iOffset, HookType_Raw, ReturnType_Void, ThisPointer_Address, PreSetGroundEntity);
 
 	if(g_hSetGroundEntityHook == null) {
+		CloseHandle(hGameData);
 		SetFailState("Failed to create SetGroundEntity hook.");
 		return;
 	}
