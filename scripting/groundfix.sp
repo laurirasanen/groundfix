@@ -24,7 +24,7 @@ public Plugin myinfo =
 	author = "jayess + Larry",
 	description = "movement fixes for ground bugs",
 	version = "3.1.3",
-	url = "http://steamcommunity.com/id/jayessZA + http://steamcommunity.com/id/pancakelarry"
+	url = "https://steamcommunity.com/id/jayessZA + https://steamcommunity.com/id/everything_seems_to_be_in_order/"
 };
 
 Handle g_hSetGroundEntityHook;
