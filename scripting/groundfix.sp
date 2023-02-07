@@ -2,6 +2,7 @@
 //#define DRAWBEAM_TESTING
 
 #pragma semicolon 1
+#pragma newdecls required
 
 #include <sourcemod>
 #include <dhooks>
@@ -89,7 +90,7 @@ public void OnMapStart()
 	PrecacheSound(SND_BANANASLIP);
 }
 
-public void OnClientPutInServer(client)
+public void OnClientPutInServer(int client)
 {
 	EmitSoundToClient(client, SND_BANANASLIP, _, _, _, _, 0.0);
 }
