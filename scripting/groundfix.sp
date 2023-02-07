@@ -38,7 +38,7 @@ public void OnPluginStart() {
 	StartPrepSDKCall(SDKCall_Static);
 	if(!PrepSDKCall_SetFromConf(hGameData, SDKConf_Signature, "CreateInterface"))
 	{
-		CloseHandle(hGameData);
+		delete hGameData;
 		SetFailState("Failed to get CreateInterface!");
 	}
 
@@ -49,13 +49,13 @@ public void OnPluginStart() {
 	char iface[64];
 	if(!GameConfGetKeyValue(hGameData, "GameMovementInterface", iface, sizeof(iface)))
 	{
-		CloseHandle(hGameData);
+		delete hGameData;
 		SetFailState("Failed to get game movement interface name!");
 	}
 
 	Handle call = EndPrepSDKCall();
 	Address pGameMovement = SDKCall(call, iface, 0);
-	CloseHandle(call);
+	delete call;
 
 	if(!pGameMovement)
 	{
@@ -67,7 +67,7 @@ public void OnPluginStart() {
 		iOffset, HookType_Raw, ReturnType_Void, ThisPointer_Address, PreSetGroundEntity);
 
 	if(g_hSetGroundEntityHook == null) {
-		CloseHandle(hGameData);
+		delete hGameData;
 		SetFailState("Failed to create SetGroundEntity hook.");
 		return;
 	}
@@ -175,7 +175,7 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 		{
 			float vStartPos[3];
 			TR_GetEndPosition(vStartPos, trace);
-			CloseHandle(trace);
+			delete trace;
 
 			float vEndPos[3];
 			vEndPos[0] = vStartPos[0];
@@ -189,7 +189,7 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 
 			if (!TR_DidHit(trace))
 			{
-				CloseHandle(trace);
+				delete trace;
 				float vTraceEndPos[3];
 				vTraceEndPos[0] = vEndPos[0];
 				vTraceEndPos[1] = vEndPos[1];
@@ -228,19 +228,19 @@ public MRESReturn PreSetGroundEntity(Address pThis, Handle hParams) {
 					#endif
 
 					PrintToChat(client, "Prevented failed edgebug!");
-					CloseHandle(trace);
+					delete trace;
 					EmitSoundToClient(client, SND_BANANASLIP);
 					return MRES_Supercede;
 				}
 				else
 				{
-					CloseHandle(trace);
+					delete trace;
 				}
 			}
 		}
 		else
 		{
-			CloseHandle(trace);
+			delete trace;
 		}
 	}
 
