@@ -1,3 +1,7 @@
+# Deprecation notice
+This project has been unmaintained for a while.  
+For TF2, you probably want to use [https://github.com/chrb22/jumpqol](https://github.com/chrb22/jumpqol/) instead.
+
 # groundfix
 
 A Sourcemod plugin for preventing various movement bugs related to hitting the ground.
